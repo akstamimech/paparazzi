@@ -38,6 +38,8 @@
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+struct image_t downsampled_img = {.buf=NULL, .buf_size=0};
+struct image_t *downsampled_img_ptr = &downsampled_img;
 
 /*
   Struct for keeping track of all the module settings
@@ -50,25 +52,33 @@ struct depth_estimation depth_estimation = {
 /*
   Video callback. Processes a camera image when available, and returns a depth map
 */
-struct image_t *depth_estimation_cb(struct image_t *img) {
+struct image_t *depth_estimation_cb(struct image_t *img, uint8_t camera_id __attribute__((unused))) {
   // Down sample image
-  image_create(
-    img,
-    img->w / depth_estimation.in_ds_factor,
-    img->h / depth_estimation.in_ds_factor,
-    IMAGE_YUV422
-  );
+  if(downsampled_img_ptr->buf_size < img->buf_size/(depth_estimation.in_ds_factor*depth_estimation.in_ds_factor)){
+    if(downsampled_img_ptr->buf != NULL){
+      image_free(downsampled_img_ptr);
+    }
+    image_create(downsampled_img_ptr,
+                 img->w / depth_estimation.in_ds_factor,
+                 img->h / depth_estimation.in_ds_factor,
+                 IMAGE_YUV422);
+  }
+
+  image_yuv422_downsample(img, downsampled_img_ptr, depth_estimation.in_ds_factor);
+
+  printf("Width: %d\n", downsampled_img_ptr->w);
 
   // Run  neural network using img
+  uint8_t *buffer = img->buf;
+  printf("IMAGE BUFFER CONTENTS: --------------------------------------------------------");
+  
 
-
-  return img; // Return (original / modified) image
+  return downsampled_img_ptr; // Return (original / modified) image
 }
 
 /*
   Initialize the module
 */
 void depth_estimation_init(void) {
-  // bind our colorfilter callbacks to receive the color filter outputs
   cv_add_to_device(&DEPTH_ESTIMATION_CAMERA, depth_estimation_cb, depth_estimation.in_cam_fps, 0);
 }

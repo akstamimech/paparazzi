@@ -15,5 +15,6 @@
   <init fun="depth_estimation_init()"/>
   <makefile target="ap|nps">
     <file name="depth_estimation.c"/>
+    <file name="depth_model.c"/>
   </makefile>
 </module>

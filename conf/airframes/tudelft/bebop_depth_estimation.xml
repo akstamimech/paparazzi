@@ -52,6 +52,7 @@
     <module name="depth_estimation">
       <define name="DEPTH_ESTIMATION_CAMERA" value="front_camera"/>
       <define name="DEPTH_ESTIMATION_FPS" value="5"/>
+      <define name="INPUT_DOWN_SAMPLE_FACTOR" value="4"/>
     </module>
   </firmware>
 
