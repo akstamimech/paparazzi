@@ -27,6 +27,8 @@ struct depth_estimation {
 };
 extern struct depth_estimation depth_estimation;
 
+void convert_uint8_img_to_float(const uint8_t (*in_buffer)[1][520][240], float (*out_buffer)[1][520][240]);
+
 void downsample_img(struct image_t *img);
 
 struct image_t *depth_estimation_cb(struct image_t *img, uint8_t camera_id __attribute__((unused)));
