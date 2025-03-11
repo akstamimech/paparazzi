@@ -1,0 +1,17 @@
+<!DOCTYPE module SYSTEM "module.dtd">
+
+<module name="depth_guidance">
+  <doc>
+    <description>
+    Module receiving depth vectors and using them to guide the drone
+    </description>
+  </doc>
+  <header>
+    <file name="depth_guidance.h"/>
+  </header>
+  <init fun="depth_guidance_init()"/>
+  <periodic fun="depth_guidance_periodic()" freq="5"/>
+  <makefile target="ap|nps">
+    <file name="depth_guidance.c"/>
+  </makefile>
+</module>

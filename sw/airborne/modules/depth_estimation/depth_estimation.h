@@ -1,25 +1,39 @@
-/*
- * Copyright (C) 2021 Matteo Barbera <matteo.barbera97@gmail.com>
- *
- * This file is part of Paparazzi.
- *
- * Paparazzi is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2, or (at your option)
- * any later version.
- *
- * Paparazzi is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with Paparazzi; see the file COPYING.  If not, see
- * <http://www.gnu.org/licenses/>.
- */
+#include "lib/vision/image.h"
+#include "depth_model.h"
+#include "modules/computer_vision/cv.h"
+#include "pthread.h"
+#include "modules/core/abi.h"
+#include <time.h>
+#include <stdbool.h>
+#include <time.h>
+#include <stdio.h>
 
 #ifndef PAPARAZZI_DEPTH_ESTIMATION_H
 #define PAPARAZZI_DEPTH_ESTIMATION_H
+
+#define PRINT(string, ...) fprintf(stderr, "[depth_estimation->%s()] " string,__FUNCTION__ , ##__VA_ARGS__)
+
+// Define variables from config file
+#ifndef DEPTH_ESTIMATION_FPS
+#define DEPTH_ESTIMATION_FPS 0
+#endif
+
+#ifndef INPUT_DOWN_SAMPLE_FACTOR
+#define INPUT_DOWN_SAMPLE_FACTOR 1
+#endif
+
+#ifndef DEPTH_VECTOR_SIZE
+#define DEPTH_VECTOR_SIZE 65
+#endif
+
+
+// Define functions
+
+struct depth_msg {
+  struct timeval time_stamp;
+  float depth_vector[DEPTH_VECTOR_SIZE];
+  bool updated;
+};
 
 struct depth_estimation {
   uint8_t in_ds_factor;
@@ -34,5 +48,7 @@ void downsample_img(struct image_t *img);
 struct image_t *depth_estimation_cb(struct image_t *img, uint8_t camera_id __attribute__((unused)));
 
 extern void depth_estimation_init(void);
+
+extern void depth_estimation_periodic(void);
 
 #endif //PAPARAZZI_DEPTH_ESTIMATION_H

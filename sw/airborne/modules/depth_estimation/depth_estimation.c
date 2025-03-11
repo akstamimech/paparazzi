@@ -1,44 +1,6 @@
-/*
- * Copyright (C) 2021 Matteo Barbera <matteo.barbera97@gmail.com>
- *
- * This file is part of Paparazzi.
- *
- * Paparazzi is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2, or (at your option)
- * any later version.
- *
- * Paparazzi is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with Paparazzi; see the file COPYING.  If not, see
- * <http://www.gnu.org/licenses/>.
- */
-
-#include "lib/vision/image.h"
 #include "depth_estimation.h"
-#include "depth_model.h"
-#include "modules/computer_vision/cv.h"
-#include <time.h>
-
-#include <stdio.h>
-
-// Define variables from config file
-#ifndef DEPTH_ESTIMATION_FPS
-#define DEPTH_ESTIMATION_FPS 0
-#endif
-
-#ifndef INPUT_DOWN_SAMPLE_FACTOR
-#define INPUT_DOWN_SAMPLE_FACTOR 1
-#endif
 
 #define PRINT(string, ...) fprintf(stderr, "[depth_estimation->%s()] " string,__FUNCTION__ , ##__VA_ARGS__)
-
-
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 struct image_t downsampled_img = {.buf=NULL, .buf_size=0};
 
@@ -49,6 +11,21 @@ struct depth_estimation depth_estimation = {
   .in_ds_factor = INPUT_DOWN_SAMPLE_FACTOR,
   .in_cam_fps = DEPTH_ESTIMATION_FPS,
 };
+
+/*
+  Globally updated depth message, which is updated in the video callback and copied to local in the periodic function using
+  a mutex. If the message was updated, it's sent This ensures that the message is sent on the autopilot thread instead of
+  the callback / videa thread
+*/
+struct depth_msg global_depth_msg;
+
+static pthread_mutex_t mutex;
+
+
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+
 
 /*
   Convert image values from uint8 to float array for use in depth_model. Find a better way...
@@ -78,14 +55,6 @@ struct image_t *depth_estimation_cb(struct image_t *img, uint8_t camera_id __att
 
   image_yuv422_downsample(img, &downsampled_img, depth_estimation.in_ds_factor);
 
-  // Convert to grayscale. Using the original yuyv values requires quite a few modifications to
-  // the neural network input, and some code to read neighboring pixels (see crash course page
-  // 22 or the function "find_object_centroid" in "cv_detect_color_object.c")
-
-  // SUGGESTION: Could maybe do this in place by indexing smartly. image_to_grayscale seems to
-  // just grab the y values from uyvy. We could do that as well somehow, without copying an
-  // image into different memory again (which is what happens when we create gray_img).
-  // Could maybe combine downsample and grayscale steps as well, saving memory
   struct image_t gray_img;
   image_create(&gray_img, downsampled_img.w, downsampled_img.h, IMAGE_GRAYSCALE);
   image_to_grayscale(&downsampled_img, &gray_img);
@@ -97,25 +66,25 @@ struct image_t *depth_estimation_cb(struct image_t *img, uint8_t camera_id __att
   float float_buffer[1][1][520][240] = {0};
   convert_uint8_img_to_float(in_buffer, float_buffer);
 
-  float out_buffer[1][1][520][240] = {0};  // Initialize output buffer
+  float out_buffer[1][DEPTH_VECTOR_SIZE] = {0};  // Initialize output buffer
 
   static clock_t start_time, end_time;
   static double elapsed_time;
 
   start_time = clock();
-  printf("test");
   entry(float_buffer, out_buffer);
   end_time = clock();
 
   elapsed_time = ((double)(end_time - start_time)) / CLOCKS_PER_SEC;
-  printf("Time taken to create depth map: %f\n", elapsed_time);
+  printf("Time taken to create depth vector: %f\n", elapsed_time);
 
   image_free(&gray_img);
 
-  printf("Buffer size original: %d\n", img->buf_size);
-  printf("Buffer size downsample: %d\n", downsampled_img.buf_size);
-  printf("Buffer size gray: %d\n", gray_img.buf_size);
-  printf("Gray image shape: width: %d, height: %d\n", gray_img.w, gray_img.h);
+  pthread_mutex_lock(&mutex);
+  global_depth_msg.time_stamp = img->ts;
+  memcpy(global_depth_msg.depth_vector, out_buffer[0], DEPTH_VECTOR_SIZE * sizeof(float));
+  global_depth_msg.updated = true;
+  pthread_mutex_unlock(&mutex);
   
   return &downsampled_img; // Return (original / modified) image
 }
@@ -125,4 +94,23 @@ struct image_t *depth_estimation_cb(struct image_t *img, uint8_t camera_id __att
 */
 void depth_estimation_init(void) {
   cv_add_to_device(&DEPTH_ESTIMATION_CAMERA, depth_estimation_cb, depth_estimation.in_cam_fps, 0);
+
+  memset(&global_depth_msg, 0, sizeof(struct depth_msg));
+  pthread_mutex_init(&mutex, NULL);
+}
+
+void depth_estimation_periodic(void) {
+  static struct depth_msg local_depth_msg;
+  pthread_mutex_lock(&mutex);
+  memcpy(&local_depth_msg, &global_depth_msg, sizeof(struct depth_msg));
+  pthread_mutex_unlock(&mutex);
+
+  if (local_depth_msg.updated) {
+    AbiSendMsgDEPTH_VECTOR(DEPTH_VECTOR_ID, local_depth_msg.time_stamp, local_depth_msg.depth_vector);
+
+    local_depth_msg.updated = false;
+    pthread_mutex_lock(&mutex);
+    memcpy(&global_depth_msg, &local_depth_msg, sizeof(struct depth_msg));
+    pthread_mutex_unlock(&mutex);
+  }
 }

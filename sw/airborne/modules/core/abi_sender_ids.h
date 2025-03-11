@@ -636,7 +636,6 @@
 #define VEL_SP_FCR_ID 1 // Approach Moving Target
 #endif
 
-
 /*
  * IDs of LIDAR_DATA senders
  */
@@ -644,5 +643,11 @@
 #define LIDAR_DATA_VL53L5CX_ID 1
 #endif
 
+/*
+ * IDs of DEPTH_VECTOR sender (message 38)
+ */
+#ifndef DEPTH_VECTOR_ID
+#define DEPTH_VECTOR_ID 38
+#endif
 
 #endif /* ABI_SENDER_IDS_H */

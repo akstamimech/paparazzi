@@ -10,7 +10,8 @@
     },
     "files.associations": {
         "Makefile.*": "makefile",
-        "image.h": "c"
+        "image.h": "c",
+        "stdbool.h": "c"
     },
     "C_Cpp.dimInactiveRegions": false,
     "esbonio.sphinx.confDir": "",
