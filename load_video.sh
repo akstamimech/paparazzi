@@ -1,0 +1,1 @@
+ffplay ~/paparazzi/sw/tools/rtp_viewer/rtp_5000.sdp -protocol_whitelist file,udp,rtp -fflags nobuffer -vf "transpose=2"
