@@ -26,6 +26,8 @@ void depth_vector_cb(uint8_t __attribute__((unused)) sender_id, struct timeval t
 
 float cal_yaw();
 
+bool out_of_bounds();
+
 extern void depth_guidance_init(void);
 
 extern void depth_guidance_periodic(void);
