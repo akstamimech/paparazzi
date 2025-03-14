@@ -31,9 +31,9 @@ static pthread_mutex_t mutex;
   Convert image values from uint8 to float array for use in depth_model. Find a better way...
   I hardcoded all the sizes, so this won't work when downsampling
 */
-void convert_uint8_img_to_float(const uint8_t (*in_buffer)[1][520][240], float (*out_buffer)[1][520][240]) {
+void convert_uint8_img_to_float(const uint8_t (*in_buffer)[1][520][480], float (*out_buffer)[1][520][480]) {
   for (int row = 0; row < 520; row++) {
-      for (int col = 0; col < 240; col++) {
+      for (int col = 0; col < 480; col++) {
           // Convert uint8_t (0-255) to float (0.0 - 1.0)
           out_buffer[0][0][row][col] = (float)(in_buffer[0][0][row][col]) / 255.0f;
       }
@@ -55,15 +55,17 @@ struct image_t *depth_estimation_cb(struct image_t *img, uint8_t camera_id __att
 
   image_yuv422_downsample(img, &downsampled_img, depth_estimation.in_ds_factor);
 
-  struct image_t gray_img;
-  image_create(&gray_img, downsampled_img.w, downsampled_img.h, IMAGE_GRAYSCALE);
-  image_to_grayscale(&downsampled_img, &gray_img);
+  // struct image_t gray_img;
+  // image_create(&gray_img, downsampled_img.w, downsampled_img.h, IMAGE_GRAYSCALE);
+  // image_to_grayscale(&downsampled_img, &gray_img);
 
   // Run neural network using gray_img. The buffer is indexed in one number. So if the image
   // has 120 columns, row 10 column 5 has index 10*120+5 = 1205
-  const uint8_t (*in_buffer)[1][520][240] = (const uint8_t (*)[1][520][240]) gray_img.buf;
+  // But uyvy has 2 * width, so really it's 10*120 * 2 +5 = 1205
+  // const uint8_t (*in_buffer)[1][520][240] = (const uint8_t (*)[1][520][240]) gray_img.buf;
+  const uint8_t (*in_buffer)[1][520][480] = (const uint8_t (*)[1][520][480]) downsampled_img.buf;
 
-  float float_buffer[1][1][520][240] = {0};
+  float float_buffer[1][1][520][480] = {0};
   convert_uint8_img_to_float(in_buffer, float_buffer);
 
   float out_buffer[1][DEPTH_VECTOR_SIZE] = {0};  // Initialize output buffer
@@ -78,7 +80,7 @@ struct image_t *depth_estimation_cb(struct image_t *img, uint8_t camera_id __att
   elapsed_time = ((double)(end_time - start_time)) / CLOCKS_PER_SEC;
   printf("Time taken to create depth vector: %f\n", elapsed_time);
 
-  image_free(&gray_img);
+  // image_free(&gray_img);
 
   pthread_mutex_lock(&mutex);
   global_depth_msg.time_stamp = img->ts;

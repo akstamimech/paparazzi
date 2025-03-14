@@ -11,11 +11,21 @@ enum navigation_state_t {
   OUT_OF_BOUNDS
 };
 
+void print_array(float arr[], int size) {
+  printf("[");
+  for (int i = 0; i < size; i++) {
+    printf("%.2f ", arr[i]);
+  }
+  printf("]\n\n");
+}
+
 /*
 * ABI message callback function
 */
 void depth_vector_cb(uint8_t __attribute__((unused)) sender_id, struct timeval time_stamp, float depth_vector[DEPTH_VECTOR_SIZE]) {
   printf("Received message: Timestamp: %.6f seconds\n", time_stamp.tv_sec + time_stamp.tv_usec / 1e6);
+
+  print_array(depth_vector, DEPTH_VECTOR_SIZE);
 }
 
 /*
@@ -26,7 +36,7 @@ void depth_guidance_init(void) {
 }
 
 /*
-* Function that checks it is safe to move forwards, and then sets a forward velocity setpoint or changes the heading
+* Periodic function that checks it is safe to move forwards, and then sets a forward velocity setpoint or changes the heading
 */
 void depth_guidance_periodic(void) {
   enum navigation_state_t navigation_state = SAFE;
@@ -34,7 +44,6 @@ void depth_guidance_periodic(void) {
   switch (navigation_state){
     case SAFE:
       // Get depth vector
-      
       break;
     case OBSTACLE_FOUND:
       break;

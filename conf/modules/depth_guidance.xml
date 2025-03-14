@@ -10,7 +10,7 @@
     <file name="depth_guidance.h"/>
   </header>
   <init fun="depth_guidance_init()"/>
-  <periodic fun="depth_guidance_periodic()" freq="5"/>
+  <periodic fun="depth_guidance_periodic()" freq="10"/>
   <makefile target="ap|nps">
     <file name="depth_guidance.c"/>
   </makefile>

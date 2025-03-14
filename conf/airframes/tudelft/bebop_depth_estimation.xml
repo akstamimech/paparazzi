@@ -53,12 +53,11 @@
       <define name="DEPTH_ESTIMATION_CAMERA" value="front_camera"/>
       <define name="DEPTH_ESTIMATION_FPS" value="10"/>
       <define name="DEPTH_VECTOR_ID" value="38"/>
-      <define name="INPUT_DOWN_SAMPLE_FACTOR" value="4"/>
-      <define name="DEPTH_VECTOR_SIZE" value="65"/>
+      <define name="INPUT_DOWN_SAMPLE_FACTOR" value="1"/>
+      <define name="DEPTH_VECTOR_SIZE" value="504"/> <!-- 65 for old, 504 for new -->
     </module>
 
     <module name="depth_guidance">
-      <define name="DEPTH_VECTOR_SIZE" value="65"/>
     </module>
   </firmware>
 

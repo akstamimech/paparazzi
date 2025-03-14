@@ -22,6 +22,8 @@
 
 // Define functions
 
+void print_array(float arr[], int size);
+
 void depth_vector_cb(uint8_t __attribute__((unused)) sender_id, struct timeval time_stamp, float depth_vector[DEPTH_VECTOR_SIZE]);
 
 extern void depth_guidance_init(void);
