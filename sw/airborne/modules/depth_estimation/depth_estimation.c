@@ -76,7 +76,7 @@ struct image_t *depth_estimation_cb(struct image_t *img, uint8_t camera_id __att
   end_time = clock();
 
   elapsed_time = ((double)(end_time - start_time)) / CLOCKS_PER_SEC;
-  printf("Time taken to create depth vector: %f\n", elapsed_time);
+  // printf("Time taken to create depth vector: %f\n", elapsed_time);
 
   image_free(&gray_img);
 

@@ -594,6 +594,7 @@ void guidance_h_set_heading(float heading)
 
 void guidance_h_set_body_vel(float vx, float vy)
 {
+  printf("vx: %f, vy: %f\n", vx, vy);
   float psi = stateGetNedToBodyEulers_f()->psi;
   float newvx =  cosf(-psi) * vx + sinf(-psi) * vy;
   float newvy = -sinf(-psi) * vx + cosf(-psi) * vy;
