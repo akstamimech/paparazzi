@@ -40,12 +40,13 @@ float center_x = 0;
 float center_y = 0;
 bool quadrant = false;
 
-
 /*
 * ABI message callback function
 */
 void depth_vector_cb(uint8_t __attribute__((unused)) sender_id, struct timeval time_stamp, float depth_vector[DEPTH_VECTOR_SIZE]) {
-  // printf("Received message: Timestamp: %.6f seconds\n", time_stamp.tv_sec + time_stamp.tv_usec / 1e6);
+  printf("Received message: Timestamp: %.6f seconds\n", time_stamp.tv_sec + time_stamp.tv_usec / 1e6);
+  print_array(depth_vector, DEPTH_VECTOR_SIZE);
+
   float max_depth = 0;
   int max_index = 0;
   for(int i=0; i<DEPTH_VECTOR_SIZE; i++) {
@@ -82,7 +83,7 @@ void depth_guidance_init(void) {
 /*
 Calculate yaw from max depth index
 */
-float cal_yaw() {
+float cal_yaw(void) {
   return (max_depth_index - WIDTH/2) * FOV / WIDTH;
 }
 
@@ -90,7 +91,7 @@ float cal_yaw() {
 /* 
 Check if the drone is out of bounds
 */
-bool out_of_bounds() {
+bool out_of_bounds(void) {
   float x = stateGetPositionEnu_f()->x;
   float y = stateGetPositionEnu_f()->y;
   float dis = x*x + y*y;
@@ -98,7 +99,7 @@ bool out_of_bounds() {
     if drone is in the 1, 3 quadrant, then rotate by 45 degrees
     else rotate by -45 degrees
   */
-  bool quadrant = (x-center_x) * (y-center_y) > 0;
+  quadrant = (x-center_x) * (y-center_y) > 0;
   if (dis < 8){
     max_speed = 1.0f;
   } else if (dis < 10){
@@ -134,7 +135,7 @@ void depth_guidance_periodic(void) {
       moveWaypointForward(WP_TRAJECTORY, 1.5f * maxDistance);
       // Get depth vector
       new_yaw = cal_yaw();
-      PRINT("Current yaw: %f\n", new_yaw);
+      // PRINT("Current yaw: %f\n", new_yaw);
       if (fabs(new_yaw - prev_yaw) > yaw_threshold) {
         navigation_state = OBSTACLE_FOUND;
       } else {

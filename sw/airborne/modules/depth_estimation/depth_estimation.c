@@ -70,20 +70,20 @@ void uyvy_to_yuv(float input_array[1][3][520][240], uint8_t *buf, uint16_t width
 */
 struct image_t *depth_estimation_cb(struct image_t *img, uint8_t camera_id __attribute__((unused))) {
   // Down sample image
-  if(downsampled_img.buf_size < img->buf_size/(depth_estimation.in_ds_factor*depth_estimation.in_ds_factor)){
-    image_free(&downsampled_img);
-    image_create(&downsampled_img,
-                 img->w / depth_estimation.in_ds_factor,
-                 img->h / depth_estimation.in_ds_factor,
-                 IMAGE_YUV422);
-  }
+  // if(downsampled_img.buf_size < img->buf_size/(depth_estimation.in_ds_factor*depth_estimation.in_ds_factor)){
+  //   image_free(&downsampled_img);
+  //   image_create(&downsampled_img,
+  //                img->w / depth_estimation.in_ds_factor,
+  //                img->h / depth_estimation.in_ds_factor,
+  //                IMAGE_YUV422);
+  // }
 
-  image_yuv422_downsample(img, &downsampled_img, depth_estimation.in_ds_factor);
+  // image_yuv422_downsample(img, &downsampled_img, depth_estimation.in_ds_factor);
 
   float input_array[1][3][520][240] = {0};
   float depth_vector[1][DEPTH_VECTOR_SIZE] = {0};
 
-  uyvy_to_yuv(input_array, downsampled_img.buf, downsampled_img.w, downsampled_img.h);
+  uyvy_to_yuv(input_array, img->buf, img->w, img->h);
 
   static clock_t start_time, end_time;
   static double elapsed_time;
@@ -93,8 +93,8 @@ struct image_t *depth_estimation_cb(struct image_t *img, uint8_t camera_id __att
   end_time = clock();
 
   elapsed_time = ((double)(end_time - start_time)) / CLOCKS_PER_SEC;
-  printf("Time taken to create depth vector: %f\n", elapsed_time);
-  print_array(depth_vector[0], DEPTH_VECTOR_SIZE);
+  // printf("Time taken to create depth vector: %f\n", elapsed_time);
+  // print_array(depth_vector[0], DEPTH_VECTOR_SIZE);
 
   pthread_mutex_lock(&mutex);
   global_depth_msg.time_stamp = img->ts;
@@ -102,7 +102,7 @@ struct image_t *depth_estimation_cb(struct image_t *img, uint8_t camera_id __att
   global_depth_msg.updated = true;
   pthread_mutex_unlock(&mutex);
   
-  return &downsampled_img; // Return (original / modified) image
+  return img; // Return (original / modified) image
 }
 
 /*
@@ -124,9 +124,8 @@ void depth_estimation_periodic(void) {
   if (local_depth_msg.updated) {
     AbiSendMsgDEPTH_VECTOR(DEPTH_VECTOR_ID, local_depth_msg.time_stamp, local_depth_msg.depth_vector);
 
-    local_depth_msg.updated = false;
     pthread_mutex_lock(&mutex);
-    memcpy(&global_depth_msg, &local_depth_msg, sizeof(struct depth_msg));
+    global_depth_msg.updated = false;
     pthread_mutex_unlock(&mutex);
   }
 }
