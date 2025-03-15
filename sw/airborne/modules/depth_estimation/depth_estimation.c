@@ -25,17 +25,42 @@ static pthread_mutex_t mutex;
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+void print_array(float arr[], int size) {
+  printf("[");
+  for (int i = 0; i < size; i++) {
+    printf("%.2f ", arr[i]);
+  }
+  printf("]\n\n");
+}
 
-
-/*
-  Convert image values from uint8 to float array for use in depth_model. Find a better way...
-  I hardcoded all the sizes, so this won't work when downsampling
-*/
 void convert_uint8_img_to_float(const uint8_t (*in_buffer)[1][520][240], float (*out_buffer)[1][520][240]) {
   for (int row = 0; row < 520; row++) {
       for (int col = 0; col < 240; col++) {
           // Convert uint8_t (0-255) to float (0.0 - 1.0)
           out_buffer[0][0][row][col] = (float)(in_buffer[0][0][row][col]) / 255.0f;
+      }
+  }
+}
+
+void uyvy_to_yuv(float input_array[1][3][520][240], uint8_t *buf, uint16_t width, uint16_t height) {
+  int x, y, idx;
+  
+  for (y = 0; y < height; y++) {
+      for (x = 0; x < width; x += 2) {  // Process two pixels at a time
+          idx = (y * width + x) * 2;  // Compute buffer index
+
+          uint8_t u = buf[idx];      // U value for both pixels
+          uint8_t y1 = buf[idx + 1]; // Y value for first pixel
+          uint8_t v = buf[idx + 2];  // V value for both pixels
+          uint8_t y2 = buf[idx + 3]; // Y value for second pixel
+
+          int col = x / 2;  // Convert full-width index to half-width for U/V
+
+          // Store values in the input array (convert to float)
+          input_array[0][0][y][col] = (float)y1;  // Y channel
+          input_array[0][0][y][col + 1] = (float)y2;  // Y for the next pixel
+          input_array[0][1][y][col] = (float)u;  // U channel (subsampled)
+          input_array[0][2][y][col] = (float)v;  // V channel (subsampled)
       }
   }
 }
@@ -55,34 +80,25 @@ struct image_t *depth_estimation_cb(struct image_t *img, uint8_t camera_id __att
 
   image_yuv422_downsample(img, &downsampled_img, depth_estimation.in_ds_factor);
 
-  struct image_t gray_img;
-  image_create(&gray_img, downsampled_img.w, downsampled_img.h, IMAGE_GRAYSCALE);
-  image_to_grayscale(&downsampled_img, &gray_img);
+  float input_array[1][3][520][240] = {0};
+  float depth_vector[1][DEPTH_VECTOR_SIZE] = {0};
 
-  // Run neural network using gray_img. The buffer is indexed in one number. So if the image
-  // has 120 columns, row 10 column 5 has index 10*120+5 = 1205
-  const uint8_t (*in_buffer)[1][520][240] = (const uint8_t (*)[1][520][240]) gray_img.buf;
-
-  float float_buffer[1][1][520][240] = {0};
-  convert_uint8_img_to_float(in_buffer, float_buffer);
-
-  float out_buffer[1][DEPTH_VECTOR_SIZE] = {0};  // Initialize output buffer
+  uyvy_to_yuv(input_array, downsampled_img.buf, downsampled_img.w, downsampled_img.h);
 
   static clock_t start_time, end_time;
   static double elapsed_time;
 
   start_time = clock();
-  entry(float_buffer, out_buffer);
+  entry(input_array, depth_vector);
   end_time = clock();
 
   elapsed_time = ((double)(end_time - start_time)) / CLOCKS_PER_SEC;
-  // printf("Time taken to create depth vector: %f\n", elapsed_time);
-
-  image_free(&gray_img);
+  printf("Time taken to create depth vector: %f\n", elapsed_time);
+  print_array(depth_vector[0], DEPTH_VECTOR_SIZE);
 
   pthread_mutex_lock(&mutex);
   global_depth_msg.time_stamp = img->ts;
-  memcpy(global_depth_msg.depth_vector, out_buffer[0], DEPTH_VECTOR_SIZE * sizeof(float));
+  memcpy(global_depth_msg.depth_vector, depth_vector[0], DEPTH_VECTOR_SIZE * sizeof(float));
   global_depth_msg.updated = true;
   pthread_mutex_unlock(&mutex);
   

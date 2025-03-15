@@ -5,6 +5,7 @@
 #include "modules/core/abi.h"
 #include <time.h>
 #include <stdio.h>
+#include <math.h>
 
 #define NAV_C // needed to get the nav functions like Inside...
 #include "generated/flight_plan.h"
@@ -126,7 +127,7 @@ void depth_guidance_periodic(void) {
     }
   }
 
-  PRINT("Current state: %d\n", navigation_state);
+  // PRINT("Current state: %d\n", navigation_state);
 
   switch (navigation_state){
     case SAFE:
@@ -134,7 +135,7 @@ void depth_guidance_periodic(void) {
       // Get depth vector
       new_yaw = cal_yaw();
       PRINT("Current yaw: %f\n", new_yaw);
-      if (abs(new_yaw - prev_yaw) > yaw_threshold) {
+      if (fabs(new_yaw - prev_yaw) > yaw_threshold) {
         navigation_state = OBSTACLE_FOUND;
       } else {
         moveWaypointForward(WP_GOAL, maxDistance);
@@ -154,7 +155,7 @@ void depth_guidance_periodic(void) {
 
     case AVOID:
       increase_nav_heading(new_yaw - prev_yaw);
-      if (abs(cal_yaw() - prev_yaw) < yaw_threshold) {
+      if (fabs(cal_yaw() - prev_yaw) < yaw_threshold) {
         navigation_state = SAFE;
       }
       break;
@@ -203,7 +204,7 @@ uint8_t increase_nav_heading(float incrementDegrees)
   // set heading, declared in firmwares/rotorcraft/navigation.h
   nav.heading = new_heading;
 
-  PRINT("Increasing heading to %f\n", DegOfRad(new_heading));
+  // PRINT("Increasing heading to %f\n", DegOfRad(new_heading));
   return -1;
 }
 
@@ -239,8 +240,8 @@ uint8_t calculateForwards(struct EnuCoor_i *new_coor, float distanceMeters)
  */
 uint8_t moveWaypoint(uint8_t waypoint, struct EnuCoor_i *new_coor)
 {
-  PRINT("Moving waypoint %d to x:%f y:%f\n", waypoint, POS_FLOAT_OF_BFP(new_coor->x),
-                POS_FLOAT_OF_BFP(new_coor->y));
+  // PRINT("Moving waypoint %d to x:%f y:%f\n", waypoint, POS_FLOAT_OF_BFP(new_coor->x),
+  //               POS_FLOAT_OF_BFP(new_coor->y));
   waypoint_move_xy_i(waypoint, new_coor->x, new_coor->y);
   return -1;
 }

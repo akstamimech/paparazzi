@@ -11,8 +11,6 @@
 #ifndef PAPARAZZI_DEPTH_ESTIMATION_H
 #define PAPARAZZI_DEPTH_ESTIMATION_H
 
-#define PRINT(string, ...) fprintf(stderr, "[depth_estimation->%s()] " string,__FUNCTION__ , ##__VA_ARGS__)
-
 // Define variables from config file
 #ifndef DEPTH_ESTIMATION_FPS
 #define DEPTH_ESTIMATION_FPS 0
@@ -23,7 +21,7 @@
 #endif
 
 #ifndef DEPTH_VECTOR_SIZE
-#define DEPTH_VECTOR_SIZE 65
+#define DEPTH_VECTOR_SIZE 16
 #endif
 
 
@@ -41,7 +39,11 @@ struct depth_estimation {
 };
 extern struct depth_estimation depth_estimation;
 
+void print_array(float arr[], int size);
+
 void convert_uint8_img_to_float(const uint8_t (*in_buffer)[1][520][240], float (*out_buffer)[1][520][240]);
+
+void uyvy_to_yuv(float input_array[1][3][520][240], uint8_t *buf, uint16_t width, uint16_t height);
 
 void downsample_img(struct image_t *img);
 

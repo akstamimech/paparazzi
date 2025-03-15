@@ -54,11 +54,10 @@
       <define name="DEPTH_ESTIMATION_FPS" value="10"/>
       <define name="DEPTH_VECTOR_ID" value="38"/>
       <define name="INPUT_DOWN_SAMPLE_FACTOR" value="4"/>
-      <define name="DEPTH_VECTOR_SIZE" value="65"/>
+      <define name="DEPTH_VECTOR_SIZE" value="16"/>
     </module>
 
     <module name="depth_guidance">
-      <define name="DEPTH_VECTOR_SIZE" value="65"/>
     </module>
   </firmware>
 
