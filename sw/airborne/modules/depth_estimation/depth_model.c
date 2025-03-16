@@ -58212,32 +58212,43 @@ FUNC_PREFIX void node_node_Gemm_38( const float A[1][4096], const float B[16][40
 
 
 void entry(const float tensor_x[1][3][520][240], float tensor_linear[1][16]){
+  // encoder1 
 	node_node_Conv_0( tensor_x, tensor_encoder1_depthwise_0_weight, tensor_encoder1_depthwise_0_bias, tu0.tensor_conv2d);
 	node_n0( tu0.tensor_conv2d, tensor_encoder1_depthwise_1_weight, tensor_encoder1_depthwise_1_bias, tensor_encoder1_depthwise_1_running_mean, tensor_encoder1_depthwise_1_running_var, tu1.tensor_getitem);
 	node_node_Relu_3( tu1.tensor_getitem, tu0.tensor_relu);
 	node_node_Conv_4( tu0.tensor_relu, tensor_encoder1_pointwise_0_weight, tensor_encoder1_pointwise_0_bias, tu1.tensor_conv2d_1);
 	node_n0_2( tu1.tensor_conv2d_1, tensor_encoder1_pointwise_1_weight, tensor_encoder1_pointwise_1_bias, tensor_encoder1_pointwise_1_running_mean, tensor_encoder1_pointwise_1_running_var, tu0.tensor_getitem_3);
 	node_node_Relu_7( tu0.tensor_getitem_3, tu1.tensor_relu_1);
-	node_node_AveragePool_8( tu1.tensor_relu_1, tu0.tensor_avg_pool2d);
+	// pool
+  node_node_AveragePool_8( tu1.tensor_relu_1, tu0.tensor_avg_pool2d);
+  // relu
 	node_node_Relu_9( tu0.tensor_avg_pool2d, tu1.tensor_relu_2);
+  // encoder2
 	node_node_Conv_10( tu1.tensor_relu_2, tensor_encoder2_depthwise_0_weight, tensor_encoder2_depthwise_0_bias, tu0.tensor_conv2d_2);
 	node_n0_3( tu0.tensor_conv2d_2, tensor_encoder2_depthwise_1_weight, tensor_encoder2_depthwise_1_bias, tensor_encoder2_depthwise_1_running_mean, tensor_encoder2_depthwise_1_running_var, tu1.tensor_getitem_6);
 	node_node_Relu_13( tu1.tensor_getitem_6, tu0.tensor_relu_3);
 	node_node_Conv_14( tu0.tensor_relu_3, tensor_encoder2_pointwise_0_weight, tensor_encoder2_pointwise_0_bias, tu1.tensor_conv2d_3);
 	node_n0_4( tu1.tensor_conv2d_3, tensor_encoder2_pointwise_1_weight, tensor_encoder2_pointwise_1_bias, tensor_encoder2_pointwise_1_running_mean, tensor_encoder2_pointwise_1_running_var, tu0.tensor_getitem_9);
 	node_node_Relu_17( tu0.tensor_getitem_9, tu1.tensor_relu_4);
+  // pool
 	node_node_AveragePool_18( tu1.tensor_relu_4, tu0.tensor_avg_pool2d_1);
+  // relu
 	node_node_Relu_19( tu0.tensor_avg_pool2d_1, tu1.tensor_relu_5);
+  // encoder3
 	node_node_Conv_20( tu1.tensor_relu_5, tensor_encoder3_depthwise_0_weight, tensor_encoder3_depthwise_0_bias, tu0.tensor_conv2d_4);
 	node_n0_5( tu0.tensor_conv2d_4, tensor_encoder3_depthwise_1_weight, tensor_encoder3_depthwise_1_bias, tensor_encoder3_depthwise_1_running_mean, tensor_encoder3_depthwise_1_running_var, tu1.tensor_getitem_12);
 	node_node_Relu_23( tu1.tensor_getitem_12, tu0.tensor_relu_6);
 	node_node_Conv_24( tu0.tensor_relu_6, tensor_encoder3_pointwise_0_weight, tensor_encoder3_pointwise_0_bias, tu1.tensor_conv2d_5);
 	node_n0_6( tu1.tensor_conv2d_5, tensor_encoder3_pointwise_1_weight, tensor_encoder3_pointwise_1_bias, tensor_encoder3_pointwise_1_running_mean, tensor_encoder3_pointwise_1_running_var, tu0.tensor_getitem_15);
 	node_node_Relu_27( tu0.tensor_getitem_15, tu1.tensor_relu_7);
+  // pool
 	node_node_AveragePool_28( tu1.tensor_relu_7, tu0.tensor_avg_pool2d_2);
+  // flatten
 	node_node_Constant_118( tensor_val_19);
 	node_node_Reshape_31( tu0.tensor_avg_pool2d_2, tensor_val_19, tu1.tensor_view);
+  // relu
 	node_node_Relu_32( tu1.tensor_view, tu0.tensor_relu_8);
+  // fc
 	node_node_Constant_120( tensor_val_21);
 	node_node_Reshape_35( tu0.tensor_relu_8, tensor_val_21, tu1.tensor_view_1);
 	node_node_Constant_122( tensor_val_22);
