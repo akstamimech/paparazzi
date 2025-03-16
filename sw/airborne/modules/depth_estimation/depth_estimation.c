@@ -4,6 +4,8 @@
 
 struct image_t downsampled_img = {.buf=NULL, .buf_size=0};
 
+uint8_t white[4] = {127, 255, 127, 255};
+
 /*
   Struct for keeping track of all the module settings
 */
@@ -24,6 +26,28 @@ static pthread_mutex_t mutex;
 
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+void draw_depth_vector(struct image_t *img, float depth_vector[1][DEPTH_VECTOR_SIZE]) {
+  // Find max depth value for normalization
+  float max_depth = 0.0;
+  for (int i = 0; i < DEPTH_VECTOR_SIZE; i++) {
+      if (depth_vector[0][i] > max_depth) {
+          max_depth = depth_vector[0][i];
+      }
+  }
+
+  // Draw bars
+  for (int i = 0; i < DEPTH_VECTOR_SIZE; i++) {
+      float normalized_height = depth_vector[0][i] / max_depth;
+      int bar_height = (int)(normalized_height * (float)img->w / 10);
+
+      // Compute Y positions (bars are stacked from top to bottom)
+      int y_min = (img->h / DEPTH_VECTOR_SIZE) * i;
+      int y_max = y_min + (img->h / DEPTH_VECTOR_SIZE);
+
+      image_draw_rectangle(img, 0, bar_height, y_min, y_max, white);
+  }
+}
 
 void print_array(float arr[], int size) {
   printf("[");
@@ -101,13 +125,15 @@ struct image_t *depth_estimation_cb(struct image_t *img, uint8_t camera_id __att
   memcpy(global_depth_msg.depth_vector, depth_vector[0], DEPTH_VECTOR_SIZE * sizeof(float));
   global_depth_msg.updated = true;
   pthread_mutex_unlock(&mutex);
+
+  if (DRAW_ON_IMAGE) {
+    draw_depth_vector(img, depth_vector);
+  }
   
   return img; // Return (original / modified) image
 }
 
-/*
-  Initialize the module
-*/
+
 void depth_estimation_init(void) {
   cv_add_to_device(&DEPTH_ESTIMATION_CAMERA, depth_estimation_cb, depth_estimation.in_cam_fps, 0);
 

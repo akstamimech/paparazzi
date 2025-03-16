@@ -55,6 +55,7 @@
       <define name="DEPTH_VECTOR_ID" value="38"/>
       <define name="INPUT_DOWN_SAMPLE_FACTOR" value="4"/>
       <define name="DEPTH_VECTOR_SIZE" value="16"/>
+      <define name="DRAW_ON_IMAGE" value="true"/>
     </module>
 
     <module name="depth_guidance">

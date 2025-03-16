@@ -24,6 +24,10 @@
 #define DEPTH_VECTOR_SIZE 16
 #endif
 
+#ifndef DRAW_ON_IMAGE
+#define DRAW_ON_IMAGE false
+#endif
+
 
 // Define functions
 
@@ -38,6 +42,8 @@ struct depth_estimation {
   uint8_t in_cam_fps;
 };
 extern struct depth_estimation depth_estimation;
+
+void draw_depth_vector(struct image_t *img, float depth_vector[1][DEPTH_VECTOR_SIZE]);
 
 void print_array(float arr[], int size);
 
