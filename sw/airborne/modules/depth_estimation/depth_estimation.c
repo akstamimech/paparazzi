@@ -70,23 +70,43 @@ void uyvy_to_yuv(float input_array[1][3][520][240], uint8_t *buf, uint16_t width
   int x, y, idx;
   
   for (y = 0; y < height; y++) {
-      for (x = 0; x < width; x += 2) {  // Process two pixels at a time
-          idx = (y * width + x) * 2;  // Compute buffer index
+    for (x = 0; x < width; x += 2) {  // Process two pixels at a time
+        idx = (y * width + x) * 2;  // Compute buffer index
 
-          uint8_t u = buf[idx];      // U value for both pixels
-          uint8_t y1 = buf[idx + 1]; // Y value for first pixel
-          uint8_t v = buf[idx + 2];  // V value for both pixels
-          uint8_t y2 = buf[idx + 3]; // Y value for second pixel
+        uint8_t u = buf[idx];      // U value for both pixels
+        uint8_t y1 = buf[idx + 1]; // Y value for first pixel
+        uint8_t v = buf[idx + 2];  // V value for both pixels
+        uint8_t y2 = buf[idx + 3]; // Y value for second pixel
 
-          int col = x / 2;  // Convert full-width index to half-width for U/V
+        // int col = x / 2;  // Convert full-width index to half-width for U/V
 
-          // Store values in the input array (convert to float)
-          input_array[0][0][y][col] = (float)y1;  // Y channel
-          input_array[0][0][y][col + 1] = (float)y2;  // Y for the next pixel
-          input_array[0][1][y][col] = (float)u;  // U channel (subsampled)
-          input_array[0][2][y][col] = (float)v;  // V channel (subsampled)
+        // Store values in the input array (convert to float)
+        input_array[0][0][y][x] = (float)y1;  // Y channel
+        input_array[0][0][y][x + 1] = (float)y2;  // Y for the next pixel
+        input_array[0][1][y][x] = (float)u;
+        input_array[0][1][y][x + 1] = (float)u;
+        input_array[0][2][y][x] = (float)v;
+        input_array[0][2][y][x + 1] = (float)v;
+    }
+  }
+}
+
+void save_input_array(const char *filename, float input_array[1][3][520][240]) {
+  FILE *file = fopen(filename, "w");
+  if (!file) {
+      perror("Failed to open file");
+      return;
+  }
+
+  for (int c = 0; c < 3; c++) {
+      for (int h = 0; h < 520; h++) {
+          for (int w = 0; w < 240; w++) {
+              fprintf(file, "%.6f ", input_array[0][c][h][w]);  // Space-separated values
+          }
       }
   }
+
+  fclose(file);
 }
 
 /*
@@ -108,6 +128,8 @@ struct image_t *depth_estimation_cb(struct image_t *img, uint8_t camera_id __att
   float depth_vector[1][DEPTH_VECTOR_SIZE] = {0};
 
   uyvy_to_yuv(input_array, img->buf, img->w, img->h);
+
+  // save_input_array("/home/pietb/input_array.txt", input_array);
 
   static clock_t start_time, end_time;
   static double elapsed_time;
