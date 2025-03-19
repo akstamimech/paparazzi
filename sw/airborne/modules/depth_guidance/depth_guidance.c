@@ -24,41 +24,59 @@ enum navigation_state_t {
 };
 
 // Define and initialise global variables
-u_int8_t WIDTH = 65;
-float FOV = 0.7175;
+float FOV = 115; // degrees total, so left+right
 
 enum navigation_state_t navigation_state = SAFE; // initial state
-u_int8_t max_depth_index = 0;         // index of max depth in depth vector  
+u_int8_t min_depth_index = 0;         // index of max depth in depth vector  
 float prev_yaw = 0;                   // previous yaw value
 float new_yaw = 0;                    // new yaw value
 float max_speed = 0.5f;               // max flight speed [m/s]
-float yaw_threshold = 0.1f;           // yaw threshold for changing heading [rad]
+float yaw_threshold = 25.0f;           // yaw threshold for changing heading [deg]
 float maxDistance = 0.25;             // max waypoint displacement [m]
 float patience = 5.0;           // time to wait before going back to arena [s]
 float current_time = 0;               // current time [s]
 float center_x = 0;
 float center_y = 0;
 bool quadrant = false;
+bool obstacle_in_front = false;
+float min_global_avg_depth = 9999;
+float cur_tgt_avg_depth = 9999;
 
 /*
 * ABI message callback function
 */
 void depth_vector_cb(uint8_t __attribute__((unused)) sender_id, struct timeval time_stamp, float depth_vector[DEPTH_VECTOR_SIZE]) {
-  printf("Received message: Timestamp: %.6f seconds\n", time_stamp.tv_sec + time_stamp.tv_usec / 1e6);
-  print_array(depth_vector, DEPTH_VECTOR_SIZE);
+  // printf("Received message: Timestamp: %.6f seconds\n", time_stamp.tv_sec + time_stamp.tv_usec / 1e6);
+  // print_array(depth_vector, DEPTH_VECTOR_SIZE);
 
-  float max_depth = 0;
-  int max_index = 0;
-  for(int i=0; i<DEPTH_VECTOR_SIZE; i++) {
-    float cur_depth = depth_vector[i];
-    if (cur_depth > max_depth) {
-      max_depth = cur_depth;
-      max_index = i;
+  // Higher value means closer obstacle, so search for minimum value (safest direction). Average over 3
+  // indices, so you know there's enough room to fit
+  float best_cur_avg_depth = 99999;
+  int min_index = 0;
+  for(int i=1; i<DEPTH_VECTOR_SIZE-1; i++) {
+    float avg_depth = (depth_vector[i-1] + depth_vector[i] + depth_vector[i+1]) / 3;
+    if (avg_depth < best_cur_avg_depth) {
+      best_cur_avg_depth = avg_depth;
+      min_index = i;
     }
-    // printf("%f ", cur_depth);
   }
-  max_depth_index = max_index;
-  // printf("The max depth of current frame is %f, according index is %d", max_depth, max_index);
+
+  min_depth_index = min_index;
+  min_global_avg_depth = best_cur_avg_depth;
+
+  // printf("The min depth of current frame is %f, according index is %d", min_depth, min_index);
+
+  // Look if there's likely an obstacle straight in front
+  for (int i = DEPTH_VECTOR_SIZE*1/3; i < DEPTH_VECTOR_SIZE*2/3; i++) {
+    if (depth_vector[i] > 0.35) {
+      obstacle_in_front = true;
+      printf("OBSTACLE IN FRONT. Min depth: %f   Max depth: %f", best_cur_avg_depth, depth_vector[i]);
+      return;
+    }
+  }
+
+  obstacle_in_front = false;
+  return;
 }
 
 /*
@@ -84,7 +102,7 @@ void depth_guidance_init(void) {
 Calculate yaw from max depth index
 */
 float cal_yaw(void) {
-  return (max_depth_index - WIDTH/2) * FOV / WIDTH;
+  return (float)(min_depth_index - DEPTH_VECTOR_SIZE / 2) / (float)(DEPTH_VECTOR_SIZE) * FOV;
 }
 
 
@@ -136,13 +154,13 @@ void depth_guidance_periodic(void) {
       // Get depth vector
       new_yaw = cal_yaw();
       // PRINT("Current yaw: %f\n", new_yaw);
-      if (fabs(new_yaw - prev_yaw) > yaw_threshold) {
+
+      if (obstacle_in_front && fabs(new_yaw) > yaw_threshold) {
         navigation_state = OBSTACLE_FOUND;
       } else {
         moveWaypointForward(WP_GOAL, maxDistance);
         moveWaypointForward(WP_RETREAT, -1.0f * maxDistance);
       }
-      prev_yaw = new_yaw;
       break;
 
     case OBSTACLE_FOUND:
@@ -151,13 +169,22 @@ void depth_guidance_periodic(void) {
       waypoint_move_here_2d(WP_RETREAT);
       waypoint_move_here_2d(WP_TRAJECTORY);
 
+      increase_nav_heading(new_yaw);
+      cur_tgt_avg_depth = min_global_avg_depth;
       navigation_state = AVOID;
       break;
 
     case AVOID:
-      increase_nav_heading(new_yaw - prev_yaw);
-      if (fabs(cal_yaw() - prev_yaw) < yaw_threshold) {
+      // printf("Changing nav_heading to %f \n", new_yaw);
+      printf("%f %f", cur_tgt_avg_depth, min_global_avg_depth);
+      float best_dir = cal_yaw();
+
+      if (!obstacle_in_front || fabs(cur_tgt_avg_depth - min_global_avg_depth) < 0.15) {
+        printf("Continuing");
         navigation_state = SAFE;
+      }
+      else {
+        increase_nav_heading(best_dir);
       }
       break;
 
@@ -168,7 +195,7 @@ void depth_guidance_periodic(void) {
         rotation = -75;
       }
       increase_nav_heading(rotation);
-      current_time = clock();;
+      current_time = clock();
       navigation_state = REENTER;
       break;
 
