@@ -1,275 +1,114 @@
 #include "depth_guidance.h"
-#include "firmwares/rotorcraft/navigation.h"
-#include "generated/airframe.h"
-#include "state.h"
-#include "modules/core/abi.h"
-#include <time.h>
-#include <stdio.h>
-#include <math.h>
 
-#define NAV_C // needed to get the nav functions like Inside...
-#include "generated/flight_plan.h"
-
-#define PRINT(string,...) fprintf(stderr, "[depth_guidance->%s()] " string,__FUNCTION__ , ##__VA_ARGS__)
-
+static float depth_vector[DEPTH_VECTOR_SIZE];
+static navigation_state_t current_state = TRAVEL;
+const int local_idx_start = DEPTH_VECTOR_SIZE / 2 - LOCAL_IDX_RANGE;
+const int local_idx_end = DEPTH_VECTOR_SIZE / 2 + 1 + LOCAL_IDX_RANGE;
 static abi_event depth_vector_ev;
 
-// FSM states
-enum navigation_state_t {
-  SAFE,
-  OBSTACLE_FOUND,
-  AVOID,
-  OUT_OF_BOUNDS,
-  REENTER
-};
+void depth_vector_cb(uint8_t __attribute__((unused)) sender_id,
+                     struct timeval time_stamp __attribute__((unused)),
+                     float msg_depth_vector[DEPTH_VECTOR_SIZE]) {
+    // Receive depth vector and calculate moving average over last 2 depth vectors
 
-// Define and initialise global variables
-float FOV = 115; // degrees total, so left+right
-
-enum navigation_state_t navigation_state = SAFE; // initial state
-u_int8_t min_depth_index = 0;         // index of max depth in depth vector  
-float prev_yaw = 0;                   // previous yaw value
-float new_yaw = 0;                    // new yaw value
-float max_speed = 0.5f;               // max flight speed [m/s]
-float yaw_threshold = 25.0f;           // yaw threshold for changing heading [deg]
-float maxDistance = 0.25;             // max waypoint displacement [m]
-float patience = 5.0;           // time to wait before going back to arena [s]
-float current_time = 0;               // current time [s]
-float center_x = 0;
-float center_y = 0;
-bool quadrant = false;
-bool obstacle_in_front = false;
-float min_global_avg_depth = 9999;
-float cur_tgt_avg_depth = 9999;
-
-/*
-* ABI message callback function
-*/
-void depth_vector_cb(uint8_t __attribute__((unused)) sender_id, struct timeval time_stamp, float depth_vector[DEPTH_VECTOR_SIZE]) {
-  // printf("Received message: Timestamp: %.6f seconds\n", time_stamp.tv_sec + time_stamp.tv_usec / 1e6);
-  // print_array(depth_vector, DEPTH_VECTOR_SIZE);
-
-  // Higher value means closer obstacle, so search for minimum value (safest direction). Average over 3
-  // indices, so you know there's enough room to fit
-  float best_cur_avg_depth = 99999;
-  int min_index = 0;
-  for(int i=1; i<DEPTH_VECTOR_SIZE-1; i++) {
-    float avg_depth = (depth_vector[i-1] + depth_vector[i] + depth_vector[i+1]) / 3;
-    if (avg_depth < best_cur_avg_depth) {
-      best_cur_avg_depth = avg_depth;
-      min_index = i;
+    for (int i = 0; i < DEPTH_VECTOR_SIZE; i++) {
+        depth_vector[i] = MOV_AVG_FAC * msg_depth_vector[i] + (1.0f - MOV_AVG_FAC) * depth_vector[i];
     }
-  }
-
-  min_depth_index = min_index;
-  min_global_avg_depth = best_cur_avg_depth;
-
-  // printf("The min depth of current frame is %f, according index is %d", min_depth, min_index);
-
-  // Look if there's likely an obstacle straight in front
-  for (int i = DEPTH_VECTOR_SIZE*1/3; i < DEPTH_VECTOR_SIZE*2/3; i++) {
-    if (depth_vector[i] > 0.35) {
-      obstacle_in_front = true;
-      printf("OBSTACLE IN FRONT. Min depth: %f   Max depth: %f", best_cur_avg_depth, depth_vector[i]);
-      return;
-    }
-  }
-
-  obstacle_in_front = false;
-  return;
 }
 
-/*
-* Initialisation function
-*/
 void depth_guidance_init(void) {
-  // System initialisation
-  srand(time(NULL));
-  AbiBindMsgDEPTH_VECTOR(DEPTH_VECTOR_ID, &depth_vector_ev, depth_vector_cb); 
-
-  // Initialise starting yaw -> starting direction
-  prev_yaw = cal_yaw();
-  nav.heading = prev_yaw;
-  PRINT("Initialised yaw of %f\n", prev_yaw);
-
-  // Set center of the arena
-  center_x = stateGetPositionEnu_f()->x;
-  center_y = stateGetPositionEnu_f()->y;
-  PRINT("Center of the arena: x: %f, y: %f\n", center_x, center_y);
+    AbiBindMsgDEPTH_VECTOR(DEPTH_VECTOR_ID, &depth_vector_ev, depth_vector_cb); 
 }
 
-/*
-Calculate yaw from max depth index
-*/
-float cal_yaw(void) {
-  return (float)(min_depth_index - DEPTH_VECTOR_SIZE / 2) / (float)(DEPTH_VECTOR_SIZE) * FOV;
-}
-
-
-/* 
-Check if the drone is out of bounds
-*/
-bool out_of_bounds(void) {
-  float x = stateGetPositionEnu_f()->x;
-  float y = stateGetPositionEnu_f()->y;
-  float dis = x*x + y*y;
-  /*
-    if drone is in the 1, 3 quadrant, then rotate by 45 degrees
-    else rotate by -45 degrees
-  */
-  quadrant = (x-center_x) * (y-center_y) > 0;
-  if (dis < 8){
-    max_speed = 1.0f;
-  } else if (dis < 10){
-    max_speed = 0.8f;
-  } else if (dis > 11) {
-    max_speed = 0.5f;
-    patience = (dis - 10) / max_speed;
-    printf("Patience: %f\n", patience);
-    return true;
-  }
-  return false;
-}
-
-/*
-* Function that checks it is safe to move forwards, and then sets a forward velocity setpoint or changes the heading
-*/
 void depth_guidance_periodic(void) {
-  // only evaluate our state machine if we are flying
-  if(!autopilot_in_flight()){
-    return;
-  }
-
-  if (navigation_state != REENTER) {
-    if (out_of_bounds()) {
-      navigation_state = OUT_OF_BOUNDS;
+    if (guidance_h.mode != GUIDANCE_H_MODE_GUIDED) {
+        current_state = TRAVEL;
+        return;
     }
-  }
 
-  // PRINT("Current state: %d\n", navigation_state);
+    static float global_target_heading = 0.0;
+    float current_heading = stateGetNedToBodyEulers_f()->psi;
+    float best_global_cost = 9999.0;
+    float best_local_cost = 9999.0;
+    int best_global_index = -1;
+    int best_local_index = -1;
+    
+    // Find the best local and global headings
+    for (int i = 0; i < DEPTH_VECTOR_SIZE; i++) {
+        bool is_local_heading = i >=  local_idx_start && i <= local_idx_end;
 
-  switch (navigation_state){
-    case SAFE:
-      moveWaypointForward(WP_TRAJECTORY, 1.5f * maxDistance);
-      // Get depth vector
-      new_yaw = cal_yaw();
-      // PRINT("Current yaw: %f\n", new_yaw);
-
-      if (obstacle_in_front && fabs(new_yaw) > yaw_threshold) {
-        navigation_state = OBSTACLE_FOUND;
-      } else {
-        moveWaypointForward(WP_GOAL, maxDistance);
-        moveWaypointForward(WP_RETREAT, -1.0f * maxDistance);
-      }
-      break;
-
-    case OBSTACLE_FOUND:
-      // stop
-      waypoint_move_here_2d(WP_GOAL);
-      waypoint_move_here_2d(WP_RETREAT);
-      waypoint_move_here_2d(WP_TRAJECTORY);
-
-      increase_nav_heading(new_yaw);
-      cur_tgt_avg_depth = min_global_avg_depth;
-      navigation_state = AVOID;
-      break;
-
-    case AVOID:
-      // printf("Changing nav_heading to %f \n", new_yaw);
-      printf("%f %f", cur_tgt_avg_depth, min_global_avg_depth);
-      float best_dir = cal_yaw();
-
-      if (!obstacle_in_front || fabs(cur_tgt_avg_depth - min_global_avg_depth) < 0.15) {
-        printf("Continuing");
-        navigation_state = SAFE;
-      }
-      else {
-        increase_nav_heading(best_dir);
-      }
-      break;
-
-    case OUT_OF_BOUNDS:
-      float rotation = 270;
-      if (quadrant)
-      {
-        rotation = -75;
-      }
-      increase_nav_heading(rotation);
-      current_time = clock();
-      navigation_state = REENTER;
-      break;
-
-    case REENTER:
-      float duration = (clock() - current_time) / CLOCKS_PER_SEC;
-      PRINT("Duration: %f\n", duration);
-      if (duration > patience) {
-        if (out_of_bounds()) {
-          navigation_state = OUT_OF_BOUNDS;
+        float cost = calc_heading_cost(i, is_local_heading);
+        printf("%.2f ", cost);
+        
+        if (is_local_heading) {
+            if (cost < best_local_cost) {
+                best_local_cost = cost;
+                best_local_index = i;
+            }
         } else {
-          navigation_state = SAFE;
+            if (cost < best_global_cost) {
+                best_global_cost = cost;
+                best_global_index = i;
+            }
         }
-      } else {
-        moveWaypointForward(WP_GOAL, maxDistance);
-      }
-      break;
+    }
+    printf("\nBest local cost: %f \n\n", best_local_cost);
 
-    default:
-      break;
-  }
-  return;
+    switch (current_state) {
+        case TRAVEL:
+            if (best_local_cost < COST_THRESHOLD) {
+                float delta_heading = (float)(best_local_index + 1 - DEPTH_VECTOR_SIZE / 2) * (CAM_FOV / (2*DEPTH_VECTOR_SIZE));
+                printf("\nDelta: %f", delta_heading);
+
+                guidance_h_set_body_vel(FORW_SPEED, 0.0);
+                guidance_h_set_heading(current_heading + delta_heading);
+            } else {
+                global_target_heading = current_heading + (float)(best_global_index + 1 - DEPTH_VECTOR_SIZE / 2) * (CAM_FOV / 2);
+                current_state = REORIENT; // No good heading locally, reorient
+            }
+            break;
+
+        case REORIENT:
+            // Turn in place towards global optimum heading
+            float angle_diff = calc_angle_diff(global_target_heading, current_heading);
+
+            guidance_h_set_body_vel(0.0, 0.0);
+            guidance_h_set_heading(global_target_heading);
+
+            if (angle_diff < TURN_TOLERANCE) {
+                current_state = TRAVEL;
+            }
+            break;
+    }
+
+    // printf("State: %d", current_state);
 }
 
-/*
- * Increases the NAV heading. Assumes heading is an INT32_ANGLE. It is bound in this function.
- */
-uint8_t increase_nav_heading(float incrementDegrees)
-{
-  float new_heading = stateGetNedToBodyEulers_f()->psi + RadOfDeg(incrementDegrees);
+float calc_heading_cost(int idx, bool is_local_heading) {
+    /*
+    Score a heading based on 3 variables: the depth in that direction, proximity to high depth values (obstacles)
+    and distance (in terms of yaw angle from straight forward heading). Lower cost is better
+    */
+    // Possible addition for local costs: Distance to global optimum cost
+    float depth = depth_vector[idx];
 
-  // normalize heading to [-pi, pi]
-  FLOAT_ANGLE_NORMALIZE(new_heading);
+    float proximity = 0.0;
+    if (idx > 0 && idx < DEPTH_VECTOR_SIZE - 1) {
+        proximity += W_NEIGHBOR1 * (depth_vector[idx - 1] + depth_vector[idx + 1]);
+        proximity += (idx > 1 && idx < DEPTH_VECTOR_SIZE - 2) ? W_NEIGHBOR2 * (depth_vector[idx - 2] + depth_vector[idx + 2]): 0.0;
+    }
 
-  // set heading, declared in firmwares/rotorcraft/navigation.h
-  nav.heading = new_heading;
+    float dist = (is_local_heading) ? (float)(idx - DEPTH_VECTOR_SIZE / 2): 0.0;
 
-  // PRINT("Increasing heading to %f\n", DegOfRad(new_heading));
-  return -1;
+    return W_DEPTH * depth + W_PROX * proximity + W_DIST * dist;
 }
 
-/*
- * Calculates coordinates of distance forward and sets waypoint 'waypoint' to those coordinates
- */
-uint8_t moveWaypointForward(uint8_t waypoint, float distanceMeters)
-{
-  struct EnuCoor_i new_coor;
-  calculateForwards(&new_coor, distanceMeters);
-  moveWaypoint(waypoint, &new_coor);
-  return -1;
-}
-
-/*
- * Calculates coordinates of a distance of 'distanceMeters' forward w.r.t. current position and heading
- */
-uint8_t calculateForwards(struct EnuCoor_i *new_coor, float distanceMeters)
-{
-  float heading  = stateGetNedToBodyEulers_f()->psi;
-
-  // Now determine where to place the waypoint you want to go to
-  new_coor->x = stateGetPositionEnu_i()->x + POS_BFP_OF_REAL(sinf(heading) * (distanceMeters));
-  new_coor->y = stateGetPositionEnu_i()->y + POS_BFP_OF_REAL(cosf(heading) * (distanceMeters));
-  // PRINT("Calculated %f m forward position. x: %f  y: %f based on pos(%f, %f) and heading(%f)\n", distanceMeters,	
-  //               POS_FLOAT_OF_BFP(new_coor->x), POS_FLOAT_OF_BFP(new_coor->y),
-  //               stateGetPositionEnu_f()->x, stateGetPositionEnu_f()->y, DegOfRad(heading));
-  return -1;
-}
-
-/*
- * Sets waypoint 'waypoint' to the coordinates of 'new_coor'
- */
-uint8_t moveWaypoint(uint8_t waypoint, struct EnuCoor_i *new_coor)
-{
-  // PRINT("Moving waypoint %d to x:%f y:%f\n", waypoint, POS_FLOAT_OF_BFP(new_coor->x),
-  //               POS_FLOAT_OF_BFP(new_coor->y));
-  waypoint_move_xy_i(waypoint, new_coor->x, new_coor->y);
-  return -1;
+float calc_angle_diff(float angle1, float angle2) {
+    float diff = fmodf(angle2 - angle1, 2 * M_PI);
+    if (diff > M_PI) {
+        diff -= 2 * M_PI;
+    } else if (diff < -M_PI) {
+        diff += 2 * M_PI;
+    }
+    return diff;
 }

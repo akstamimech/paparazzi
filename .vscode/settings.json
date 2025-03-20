@@ -12,9 +12,11 @@
         "Makefile.*": "makefile",
         "image.h": "c",
         "stdbool.h": "c",
-        "depth_guidance.h": "c"
+        "depth_guidance.h": "c",
+        "variant": "c",
+        "string": "c"
     },
     "C_Cpp.dimInactiveRegions": false,
     "esbonio.sphinx.confDir": "",
-    "cmake.sourceDirectory": "/home/lemon/paparazzi/sw/ext/TRICAL",
+    "cmake.sourceDirectory": "/home/pietb/paparazzi/sw/ext/libsbp/c",
 }
