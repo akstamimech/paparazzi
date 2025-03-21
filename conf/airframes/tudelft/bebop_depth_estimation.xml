@@ -53,7 +53,7 @@
       <define name="DEPTH_ESTIMATION_CAMERA" value="front_camera"/>
       <define name="DEPTH_ESTIMATION_FPS" value="10"/>
       <define name="DEPTH_VECTOR_ID" value="38"/>
-      <define name="INPUT_DOWN_SAMPLE_FACTOR" value="4"/>
+      <define name="INPUT_DOWN_SAMPLE_FACTOR" value="2"/>
       <define name="DEPTH_VECTOR_SIZE" value="16"/>
       <define name="DRAW_ON_IMAGE" value="true"/>
     </module>

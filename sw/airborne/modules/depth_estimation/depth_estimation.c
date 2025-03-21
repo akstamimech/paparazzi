@@ -57,16 +57,7 @@ void print_array(float arr[], int size) {
   printf("]\n\n");
 }
 
-void convert_uint8_img_to_float(const uint8_t (*in_buffer)[1][520][240], float (*out_buffer)[1][520][240]) {
-  for (int row = 0; row < 520; row++) {
-      for (int col = 0; col < 240; col++) {
-          // Convert uint8_t (0-255) to float (0.0 - 1.0)
-          out_buffer[0][0][row][col] = (float)(in_buffer[0][0][row][col]) / 255.0f;
-      }
-  }
-}
-
-void uyvy_to_yuv(float input_array[1][3][520][240], uint8_t *buf, uint16_t width, uint16_t height) {
+void uyvy_to_yuv(float input_array[1][3][260][120], uint8_t *buf, uint16_t width, uint16_t height) {
   int x, y, idx;
   
   for (y = 0; y < height; y++) {
@@ -91,7 +82,7 @@ void uyvy_to_yuv(float input_array[1][3][520][240], uint8_t *buf, uint16_t width
   }
 }
 
-void save_input_array(const char *filename, float input_array[1][3][520][240]) {
+void save_input_array(const char *filename, float input_array[1][3][260][120]) {
   FILE *file = fopen(filename, "w");
   if (!file) {
       perror("Failed to open file");
@@ -99,8 +90,8 @@ void save_input_array(const char *filename, float input_array[1][3][520][240]) {
   }
 
   for (int c = 0; c < 3; c++) {
-      for (int h = 0; h < 520; h++) {
-          for (int w = 0; w < 240; w++) {
+      for (int h = 0; h < 260; h++) {
+          for (int w = 0; w < 120; w++) {
               fprintf(file, "%.6f ", input_array[0][c][h][w]);  // Space-separated values
           }
       }
@@ -114,20 +105,21 @@ void save_input_array(const char *filename, float input_array[1][3][520][240]) {
 */
 struct image_t *depth_estimation_cb(struct image_t *img, uint8_t camera_id __attribute__((unused))) {
   // Down sample image
-  // if(downsampled_img.buf_size < img->buf_size/(depth_estimation.in_ds_factor*depth_estimation.in_ds_factor)){
-  //   image_free(&downsampled_img);
-  //   image_create(&downsampled_img,
-  //                img->w / depth_estimation.in_ds_factor,
-  //                img->h / depth_estimation.in_ds_factor,
-  //                IMAGE_YUV422);
-  // }
+  if(downsampled_img.buf_size < img->buf_size/(depth_estimation.in_ds_factor*depth_estimation.in_ds_factor)){
+    image_free(&downsampled_img);
+    image_create(&downsampled_img,
+                 img->w / depth_estimation.in_ds_factor,
+                 img->h / depth_estimation.in_ds_factor,
+                 IMAGE_YUV422);
+  }
 
-  // image_yuv422_downsample(img, &downsampled_img, depth_estimation.in_ds_factor);
+  image_yuv422_downsample(img, &downsampled_img, depth_estimation.in_ds_factor);
 
-  float input_array[1][3][520][240] = {0};
+  float input_array[1][3][260][120] = {0};
   float depth_vector[1][DEPTH_VECTOR_SIZE] = {0};
 
-  uyvy_to_yuv(input_array, img->buf, img->w, img->h);
+  // uyvy_to_yuv(input_array, img->buf, img->w, img->h);
+  uyvy_to_yuv(input_array, downsampled_img.buf, downsampled_img.w, downsampled_img.h);
 
   // save_input_array("/home/pietb/input_array.txt", input_array);
 

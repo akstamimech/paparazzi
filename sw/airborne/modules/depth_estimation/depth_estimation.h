@@ -43,15 +43,14 @@ struct depth_estimation {
 };
 extern struct depth_estimation depth_estimation;
 
-void save_input_array(const char *filename, float input_array[1][3][520][240]);
+void save_input_array(const char *filename, float input_array[1][3][260][120]);
 
 void draw_depth_vector(struct image_t *img, float depth_vector[1][DEPTH_VECTOR_SIZE]);
 
 void print_array(float arr[], int size);
 
-void convert_uint8_img_to_float(const uint8_t (*in_buffer)[1][520][240], float (*out_buffer)[1][520][240]);
-
-void uyvy_to_yuv(float input_array[1][3][520][240], uint8_t *buf, uint16_t width, uint16_t height);
+// void uyvy_to_yuv(float input_array[1][3][520][240], uint8_t *buf, uint16_t width, uint16_t height);
+void uyvy_to_yuv(float input_array[1][3][260][120], uint8_t *buf, uint16_t width, uint16_t height);
 
 void downsample_img(struct image_t *img);
 
