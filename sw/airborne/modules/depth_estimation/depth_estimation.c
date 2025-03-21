@@ -23,6 +23,9 @@ struct depth_msg global_depth_msg;
 
 static pthread_mutex_t mutex;
 
+static clock_t start_time, end_time;
+static double elapsed_time;
+
 
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -57,6 +60,14 @@ void print_array(float arr[], int size) {
   printf("]\n\n");
 }
 
+void print_int_array(uint8_t arr[], int size) {
+  printf("[");
+  for (int i = 0; i < size; i++) {
+    printf("%d ", arr[i]);
+  }
+  printf("]\n\n");
+}
+
 void uyvy_to_yuv(float input_array[1][3][260][120], uint8_t *buf, uint16_t width, uint16_t height) {
   int x, y, idx;
   
@@ -68,8 +79,6 @@ void uyvy_to_yuv(float input_array[1][3][260][120], uint8_t *buf, uint16_t width
         uint8_t y1 = buf[idx + 1]; // Y value for first pixel
         uint8_t v = buf[idx + 2];  // V value for both pixels
         uint8_t y2 = buf[idx + 3]; // Y value for second pixel
-
-        // int col = x / 2;  // Convert full-width index to half-width for U/V
 
         // Store values in the input array (convert to float)
         input_array[0][0][y][x] = (float)y1;  // Y channel
@@ -115,23 +124,13 @@ struct image_t *depth_estimation_cb(struct image_t *img, uint8_t camera_id __att
 
   image_yuv422_downsample(img, &downsampled_img, depth_estimation.in_ds_factor);
 
-  float input_array[1][3][260][120] = {0};
-  float depth_vector[1][DEPTH_VECTOR_SIZE] = {0};
+  float input_array[1][3][260][120];
+  float depth_vector[1][DEPTH_VECTOR_SIZE];
 
   // uyvy_to_yuv(input_array, img->buf, img->w, img->h);
   uyvy_to_yuv(input_array, downsampled_img.buf, downsampled_img.w, downsampled_img.h);
 
-  // save_input_array("/home/pietb/input_array.txt", input_array);
-
-  static clock_t start_time, end_time;
-  static double elapsed_time;
-
-  start_time = clock();
   entry(input_array, depth_vector);
-  end_time = clock();
-
-  elapsed_time = ((double)(end_time - start_time)) / CLOCKS_PER_SEC;
-  // printf("Time taken to create depth vector: %f\n", elapsed_time);
   // print_array(depth_vector[0], DEPTH_VECTOR_SIZE);
 
   pthread_mutex_lock(&mutex);
@@ -143,10 +142,16 @@ struct image_t *depth_estimation_cb(struct image_t *img, uint8_t camera_id __att
   if (DRAW_ON_IMAGE) {
     draw_depth_vector(img, depth_vector);
   }
-  
-  return img; // Return (original / modified) image
-}
 
+  if (PROFILE_CNN) {
+    end_time = clock();
+    elapsed_time = ((double)(end_time - start_time)) / CLOCKS_PER_SEC;
+    printf("Time taken to create depth vector: %.2f s\n", elapsed_time);
+    start_time = clock();
+  }
+  
+  return img;
+}
 
 void depth_estimation_init(void) {
   cv_add_to_device(&DEPTH_ESTIMATION_CAMERA, depth_estimation_cb, depth_estimation.in_cam_fps, 0);

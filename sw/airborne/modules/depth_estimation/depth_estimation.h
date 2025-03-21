@@ -28,8 +28,9 @@
 #define DRAW_ON_IMAGE false
 #endif
 
-
-// Define functions
+#ifndef PROFILE_CNN
+#define PROFILE_CNN false
+#endif
 
 struct depth_msg {
   struct timeval time_stamp;
@@ -48,6 +49,8 @@ void save_input_array(const char *filename, float input_array[1][3][260][120]);
 void draw_depth_vector(struct image_t *img, float depth_vector[1][DEPTH_VECTOR_SIZE]);
 
 void print_array(float arr[], int size);
+
+void print_int_array(uint8_t arr[], int size);
 
 // void uyvy_to_yuv(float input_array[1][3][520][240], uint8_t *buf, uint16_t width, uint16_t height);
 void uyvy_to_yuv(float input_array[1][3][260][120], uint8_t *buf, uint16_t width, uint16_t height);

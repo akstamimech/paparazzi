@@ -14728,10 +14728,6 @@ static const int64_t tensor_val_21[4] =
 {1, 64, 4, 2};
 static const int64_t tensor_val_22[2] = 
 {1, 512};
-static const float tensor_scalar_tensor_default[1] = 
-{0.0000000000000000000f};
-static const float tensor_scalar_tensor_default_1[1] = 
-{1.0000000000000000000f};
 union tensor_union_0 {
 float tensor_conv2d[1][3][130][60];
 float tensor_relu[1][3][130][60];
@@ -14747,7 +14743,6 @@ float tensor_getitem_15[1][64][8][4];
 float tensor_avg_pool2d_2[1][64][4][2];
 float tensor_relu_8[1][512];
 float tensor_view_2[1][512];
-float tensor_val_25[1][16];
 };
 static union tensor_union_0 tu0;
 
@@ -14765,7 +14760,6 @@ float tensor_conv2d_5[1][64][8][4];
 float tensor_relu_7[1][64][8][4];
 float tensor_view[1][512];
 float tensor_view_1[1][64][4][2];
-float tensor_linear[1][16];
 };
 static union tensor_union_1 tu1;
 
@@ -15390,9 +15384,9 @@ FUNC_PREFIX void node_node_AveragePool_28( const float x[1][64][8][4], float y[1
 
 /*
  * Operand:           Constant
- * Name in ONNX file: node_Constant_124
+ * Name in ONNX file: node_Constant_118
  */
-FUNC_PREFIX void node_node_Constant_124( const int64_t output[2] )
+FUNC_PREFIX void node_node_Constant_118( const int64_t output[2] )
 {
 	/* Constant */
 	/* The output is generated as a global tensor */
@@ -15431,9 +15425,9 @@ FUNC_PREFIX void node_node_Relu_32( const float X[1][512], float Y[1][512] )
 
 /*
  * Operand:           Constant
- * Name in ONNX file: node_Constant_126
+ * Name in ONNX file: node_Constant_120
  */
-FUNC_PREFIX void node_node_Constant_126( const int64_t output[4] )
+FUNC_PREFIX void node_node_Constant_120( const int64_t output[4] )
 {
 	/* Constant */
 	/* The output is generated as a global tensor */
@@ -15457,9 +15451,9 @@ FUNC_PREFIX void node_node_Reshape_35( const float data[1][512], const int64_t s
 
 /*
  * Operand:           Constant
- * Name in ONNX file: node_Constant_128
+ * Name in ONNX file: node_Constant_122
  */
-FUNC_PREFIX void node_node_Constant_128( const int64_t output[2] )
+FUNC_PREFIX void node_node_Constant_122( const int64_t output[2] )
 {
 	/* Constant */
 	/* The output is generated as a global tensor */
@@ -15512,68 +15506,8 @@ FUNC_PREFIX void node_node_Gemm_38( const float A[1][512], const float B[16][512
 	}
 }
 
-/*
- * Operand:           Constant
- * Name in ONNX file: node_Constant_129
- */
-FUNC_PREFIX void node_node_Constant_129( const float output[1] )
-{
-	/* Constant */
-	/* The output is generated as a global tensor */
-	(void)output;
-}
 
-/*
- * Operand:           Constant
- * Name in ONNX file: node_Constant_130
- */
-FUNC_PREFIX void node_node_Constant_130( const float output[1] )
-{
-	/* Constant */
-	/* The output is generated as a global tensor */
-	(void)output;
-}
-
-/*
- * Operand:           Max
- * Name in ONNX file: node_Max_43
- */
-FUNC_PREFIX void node_node_Max_43( const float in_0[1][16], const float in_1[1], float output[1][16] )
-{
-	/* Max
-	   Implemented with Elementwise_variadic template.
-	 */
-	for (unsigned i0=0; i0<1; i0++) {
-	for (unsigned i1=0; i1<16; i1++) {
-		output[i0][i1] = 
-			MAX(in_0[0][i1], 
-			MAX(in_0[0][i1], 
-				in_1[i1]));
-	}
-	}
-}
-
-/*
- * Operand:           Min
- * Name in ONNX file: node_Min_44
- */
-FUNC_PREFIX void node_node_Min_44( const float in_0[1][16], const float in_1[1], float output[1][16] )
-{
-	/* Min
-	   Implemented with Elementwise_variadic template.
-	 */
-	for (unsigned i0=0; i0<1; i0++) {
-	for (unsigned i1=0; i1<16; i1++) {
-		output[i0][i1] = 
-			MIN(in_0[0][i1], 
-			MIN(in_0[0][i1], 
-				in_1[i1]));
-	}
-	}
-}
-
-
-void entry(const float tensor_x[1][3][260][120], float tensor_clamp[1][16]){
+void entry(const float tensor_x[1][3][260][120], float tensor_linear[1][16]){
 	node_node_Conv_0( tensor_x, tensor_encoder1_depthwise_0_weight, tensor_encoder1_depthwise_0_bias, tu0.tensor_conv2d);
 	node_n0( tu0.tensor_conv2d, tensor_encoder1_depthwise_1_weight, tensor_encoder1_depthwise_1_bias, tensor_encoder1_depthwise_1_running_mean, tensor_encoder1_depthwise_1_running_var, tu1.tensor_getitem);
 	node_node_Relu_3( tu1.tensor_getitem, tu0.tensor_relu);
@@ -15597,16 +15531,12 @@ void entry(const float tensor_x[1][3][260][120], float tensor_clamp[1][16]){
 	node_n0_6( tu1.tensor_conv2d_5, tensor_encoder3_pointwise_1_weight, tensor_encoder3_pointwise_1_bias, tensor_encoder3_pointwise_1_running_mean, tensor_encoder3_pointwise_1_running_var, tu0.tensor_getitem_15);
 	node_node_Relu_27( tu0.tensor_getitem_15, tu1.tensor_relu_7);
 	node_node_AveragePool_28( tu1.tensor_relu_7, tu0.tensor_avg_pool2d_2);
-	node_node_Constant_124( tensor_val_19);
+	node_node_Constant_118( tensor_val_19);
 	node_node_Reshape_31( tu0.tensor_avg_pool2d_2, tensor_val_19, tu1.tensor_view);
 	node_node_Relu_32( tu1.tensor_view, tu0.tensor_relu_8);
-	node_node_Constant_126( tensor_val_21);
+	node_node_Constant_120( tensor_val_21);
 	node_node_Reshape_35( tu0.tensor_relu_8, tensor_val_21, tu1.tensor_view_1);
-	node_node_Constant_128( tensor_val_22);
+	node_node_Constant_122( tensor_val_22);
 	node_node_Reshape_37( tu1.tensor_view_1, tensor_val_22, tu0.tensor_view_2);
-	node_node_Gemm_38( tu0.tensor_view_2, tensor_fc_weight, tensor_fc_bias, tu1.tensor_linear);
-	node_node_Constant_129( tensor_scalar_tensor_default);
-	node_node_Constant_130( tensor_scalar_tensor_default_1);
-	node_node_Max_43( tu1.tensor_linear, tensor_scalar_tensor_default, tu0.tensor_val_25);
-	node_node_Min_44( tu0.tensor_val_25, tensor_scalar_tensor_default_1, tensor_clamp);
+	node_node_Gemm_38( tu0.tensor_view_2, tensor_fc_weight, tensor_fc_bias, tensor_linear);
 }

@@ -1,5 +1,12 @@
 #include "depth_guidance.h"
 
+// Current states:
+// TRAVEL: Fly forward and continuously turn towards the best heading within a certain range (so only
+// angles right in front of the drone). If there's no good heading locally, go to REORIENT
+//
+// REORIENT: Stop the drone and turn towards the best heading of all of the non-local options (so make
+// a large turn). Once this heading is reached, go back to TRAVEL
+
 static float depth_vector[DEPTH_VECTOR_SIZE];
 static navigation_state_t current_state = TRAVEL;
 const int local_idx_start = DEPTH_VECTOR_SIZE / 2 - 1 - LOCAL_IDX_RANGE; // Assuming even DEPTH_VECTOR_SIZE
