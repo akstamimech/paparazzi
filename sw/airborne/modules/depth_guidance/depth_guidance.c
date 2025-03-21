@@ -2,8 +2,8 @@
 
 static float depth_vector[DEPTH_VECTOR_SIZE];
 static navigation_state_t current_state = TRAVEL;
-const int local_idx_start = DEPTH_VECTOR_SIZE / 2 - LOCAL_IDX_RANGE;
-const int local_idx_end = DEPTH_VECTOR_SIZE / 2 + 1 + LOCAL_IDX_RANGE;
+const int local_idx_start = DEPTH_VECTOR_SIZE / 2 - 1 - LOCAL_IDX_RANGE; // Assuming even DEPTH_VECTOR_SIZE
+const int local_idx_end = DEPTH_VECTOR_SIZE / 2 + LOCAL_IDX_RANGE;
 static abi_event depth_vector_ev;
 
 void depth_vector_cb(uint8_t __attribute__((unused)) sender_id,
@@ -98,7 +98,9 @@ float calc_heading_cost(int idx, bool is_local_heading) {
         proximity += (idx > 1 && idx < DEPTH_VECTOR_SIZE - 2) ? W_NEIGHBOR2 * (depth_vector[idx - 2] + depth_vector[idx + 2]): 0.0;
     }
 
-    float dist = (is_local_heading) ? (float)(idx - DEPTH_VECTOR_SIZE / 2): 0.0;
+    int dist1 = abs(idx - (DEPTH_VECTOR_SIZE / 2 - 1));
+    int dist2 = abs(idx - DEPTH_VECTOR_SIZE / 2);
+    float dist = (is_local_heading) ? (float)min(dist1, dist2) : 0.0;
 
     return W_DEPTH * depth + W_PROX * proximity + W_DIST * dist;
 }

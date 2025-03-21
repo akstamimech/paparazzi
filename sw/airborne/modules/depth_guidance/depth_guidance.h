@@ -55,6 +55,10 @@
 #define M_PI 3.14159265358
 #endif
 
+#ifndef min
+#define min(a, b) ((a) < (b) ? (a) : (b))
+#endif
+
 typedef enum {
   TRAVEL,
   REORIENT
