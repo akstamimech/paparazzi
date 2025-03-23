@@ -56,102 +56,6 @@ void depth_guidance_init(void) {
     reorient_count = 0;
 }
 
-void depth_guidance_periodic(void) {
-    static float global_target_heading;
-    static float boundary_avoid_angle;
-    float current_heading = stateGetNedToBodyEulers_f()->psi;
-    float vx = stateGetSpeedEnu_f()->x;
-    float vy = stateGetSpeedEnu_f()->y;
-    float best_global_cost = 9999.0;
-    float best_local_cost = 9999.0;
-    int best_global_index = -1;
-    int best_local_index = -1;
-    float future_pos_x;
-    float future_pos_y;
-    
-    // Find the best local and global headings
-    for (int i = 0; i < DEPTH_VECTOR_SIZE; i++) {
-        bool is_local_heading = i >=  local_idx_start && i <= local_idx_end;
-
-        float cost = calc_heading_cost(i, is_local_heading);
-        // printf("%.2f ", cost);
-        
-        if (is_local_heading) {
-            if (cost < best_local_cost) {
-                best_local_cost = cost;
-                best_local_index = i;
-            }
-        } else {
-            if (cost < best_global_cost) {
-                best_global_cost = cost;
-                best_global_index = i;
-            }
-        }
-    }
-
-    // See if drone will be out of bounds
-    calc_future_pos_with_vel(&future_pos_x, &future_pos_y);
-    bool boundary_ok = InsideCyberZoo(future_pos_x, future_pos_y); // Can also be InsideObstacleZone, but that is smaller area
-
-    // Prevent running the drone when not in guided mode
-    if (guidance_h.mode != GUIDANCE_H_MODE_GUIDED) {
-        current_state = TRAVEL;
-        reorient_count = 0;
-        return;
-    }
-
-    // FSM logic
-    switch (current_state) {
-        case TRAVEL:
-            if (!boundary_ok) {
-                // float search_heading_start = atan2f(stateGetSpeedEnu_f()->y, stateGetSpeedEnu_f()->x);
-                // boundary_avoid_angle = current_heading + find_valid_heading(search_heading_start);
-
-                boundary_avoid_angle = current_heading + 0.5 * M_PI;
-                current_state = AVOID_BOUNDARY;
-
-            } else if (best_local_cost < COST_THRESHOLD || reorient_count > REORIENT_THRESHOLD) {
-                float delta_heading = (float)(best_local_index + 1 - DEPTH_VECTOR_SIZE / 2) * (CAM_FOV / (2*DEPTH_VECTOR_SIZE));
-                float side_speed = 2 * delta_heading * FORW_SPEED;
-
-                guidance_h_set_body_vel(FORW_SPEED, side_speed);
-                guidance_h_set_heading(current_heading + delta_heading);
-
-                reorient_count = max(0, reorient_count - 1);
-
-            } else {
-                global_target_heading = current_heading + (float)(best_global_index + 1 - DEPTH_VECTOR_SIZE / 2) * (CAM_FOV / 2);
-                current_state = REORIENT; // No good heading locally, reorient
-            }
-            break;
-
-        case REORIENT:
-            // Turn in place towards global optimum heading
-            float angle_diff = calc_angle_diff(global_target_heading, current_heading);
-
-            guidance_h_set_body_vel(0.0, 0.0);
-            guidance_h_set_heading(global_target_heading);
-
-            if (angle_diff < TURN_TOLERANCE) {
-                reorient_count += 3;
-                current_state = TRAVEL;
-            }
-            break;
-
-        case AVOID_BOUNDARY:
-            float bound_angle_diff = calc_angle_diff(boundary_avoid_angle, current_heading);
-
-            guidance_h_set_body_vel(0.0, 0.0);
-            guidance_h_set_heading(boundary_avoid_angle);
-
-            if (bound_angle_diff < TURN_TOLERANCE) {
-                reorient_count += 6;
-                current_state = TRAVEL;
-            }
-            break;
-    }
-}
-
 float calc_heading_cost(int idx, bool is_local_heading) {
     /*
     Score a heading based on 4 variables: the depth in that direction, proximity to other high depth
@@ -219,10 +123,10 @@ void calc_future_pos_with_angle(float *future_x, float *future_y, float heading)
 }
 
 float find_valid_heading(float start_heading) {
-    // Check 8 headings in counterclockwise increments of pi/4 (45 degrees), starting from start_heading
+    // Check 8 headings in clockwise increments of pi/4 (45 degrees), starting from start_heading
 
     for (int i = 0; i < 8; i++) {
-        float delta_heading = -(float)i * (M_PI / 4);
+        float delta_heading = (float)i * (M_PI / 4);
         float new_heading = start_heading + delta_heading;
 
         if (new_heading < 0) {
@@ -239,4 +143,98 @@ float find_valid_heading(float start_heading) {
     }
 
     return M_PI;  // No valid heading found, just turn around
+}
+
+void depth_guidance_periodic(void) {
+    static float global_target_heading;
+    static float boundary_avoid_angle;
+    float current_heading = stateGetNedToBodyEulers_f()->psi;
+    float best_global_cost = 9999.0;
+    float best_local_cost = 9999.0;
+    int best_global_index = -1;
+    int best_local_index = -1;
+    float future_pos_x;
+    float future_pos_y;
+    
+    // Find the best local and global headings
+    for (int i = 0; i < DEPTH_VECTOR_SIZE; i++) {
+        bool is_local_heading = i >=  local_idx_start && i <= local_idx_end;
+
+        float cost = calc_heading_cost(i, is_local_heading);
+        // printf("%.2f ", cost);
+        
+        if (is_local_heading) {
+            if (cost < best_local_cost) {
+                best_local_cost = cost;
+                best_local_index = i;
+            }
+        } else {
+            if (cost < best_global_cost) {
+                best_global_cost = cost;
+                best_global_index = i;
+            }
+        }
+    }
+
+    // See if drone will be out of bounds
+    calc_future_pos_with_vel(&future_pos_x, &future_pos_y);
+    bool boundary_ok = InsideCyberZoo(future_pos_x, future_pos_y); // Can also be InsideObstacleZone, but that is smaller area
+
+    // Prevent running the drone when not in guided mode
+    if (guidance_h.mode != GUIDANCE_H_MODE_GUIDED) {
+        current_state = TRAVEL;
+        reorient_count = 0;
+        return;
+    }
+
+    // FSM logic
+    switch (current_state) {
+        case TRAVEL:
+            if (!boundary_ok) {
+                // float search_heading_start = atan2f(stateGetSpeedEnu_f()->y, stateGetSpeedEnu_f()->x);
+                // boundary_avoid_angle = current_heading + find_valid_heading(search_heading_start);
+
+                boundary_avoid_angle = current_heading + 0.5 * M_PI;
+                current_state = AVOID_BOUNDARY;
+
+            } else if (best_local_cost < COST_THRESHOLD || reorient_count > REORIENT_THRESHOLD) {
+                float delta_heading = (float)(best_local_index + 1 - DEPTH_VECTOR_SIZE / 2) * (CAM_FOV / (2*DEPTH_VECTOR_SIZE));
+                float side_speed = 2 * delta_heading * FORW_SPEED;
+
+                guidance_h_set_body_vel(FORW_SPEED, side_speed);
+                guidance_h_set_heading(current_heading + delta_heading);
+
+                reorient_count = max(0, reorient_count - 1);
+
+            } else {
+                global_target_heading = current_heading + (float)(best_global_index + 1 - DEPTH_VECTOR_SIZE / 2) * (CAM_FOV / 2);
+                current_state = REORIENT; // No good heading locally, reorient
+            }
+            break;
+
+        case REORIENT:
+            // Turn in place towards global optimum heading
+            float angle_diff = fabs(calc_angle_diff(global_target_heading, current_heading));
+
+            guidance_h_set_body_vel(0.0, 0.0);
+            guidance_h_set_heading(global_target_heading);
+
+            if (angle_diff < TURN_TOLERANCE) {
+                reorient_count += 3;
+                current_state = TRAVEL;
+            }
+            break;
+
+        case AVOID_BOUNDARY:
+            float bound_angle_diff = fabs(calc_angle_diff(boundary_avoid_angle, current_heading));
+
+            guidance_h_set_body_vel(0.0, 0.0);
+            guidance_h_set_heading(boundary_avoid_angle);
+
+            if (bound_angle_diff < TURN_TOLERANCE) {
+                reorient_count += 6;
+                current_state = TRAVEL;
+            }
+            break;
+    }
 }
