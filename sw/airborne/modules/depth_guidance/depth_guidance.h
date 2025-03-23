@@ -7,6 +7,9 @@
 #include <math.h>
 #include <stdbool.h>
 
+#define NAV_C // Needed for geofencing, gives "InsideObstacleZone" function
+#include "generated/flight_plan.h"
+
 #ifndef PAPARAZZI_DEPTH_GUIDANCE_H
 #define PAPARAZZI_DEPTH_GUIDANCE_H
 
@@ -31,6 +34,10 @@
 #define COST_THRESHOLD 1
 #endif
 
+#ifndef REORIENT_THRESHOLD
+#define REORIENT_THRESHOLD 5
+#endif
+
 #ifndef LOCAL_IDX_RANGE
 #define LOCAL_IDX_RANGE 2
 #endif
@@ -41,6 +48,7 @@
 #define W_DIST 0.2
 #define W_NEIGHBOR1 0.5
 #define W_NEIGHBOR2 0.2
+#define W_OUTSIDE_OBJS 0.1
 #endif
 
 #ifndef CAM_FOV
@@ -51,6 +59,10 @@
 #define TURN_TOLERANCE 0.3
 #endif
 
+#ifndef BOUNDARY_CHECK_DIST
+#define BOUNDARY_CHECK_DIST 1.0
+#endif
+
 #ifndef M_PI
 #define M_PI 3.14159265358
 #endif
@@ -59,9 +71,14 @@
 #define min(a, b) ((a) < (b) ? (a) : (b))
 #endif
 
+#ifndef max
+#define max(a, b) ((a) > (b) ? (a) : (b))
+#endif
+
 typedef enum {
   TRAVEL,
-  REORIENT
+  REORIENT,
+  AVOID_BOUNDARY
 } navigation_state_t;
 
 void depth_vector_cb(uint8_t __attribute__((unused)) sender_id, struct timeval time_stamp __attribute__((unused)), float msg_depth_vector[DEPTH_VECTOR_SIZE]);
@@ -73,5 +90,7 @@ extern void depth_guidance_periodic(void);
 float calc_heading_cost(int idx, bool is_local_heading);
 
 float calc_angle_diff(float angle1, float angle2);
+
+void calc_future_pos(float *future_x, float *future_y);
 
 #endif //PAPARAZZI_DEPTH_GUIDANCE_H

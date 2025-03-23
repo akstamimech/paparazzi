@@ -113,6 +113,8 @@ void save_input_array(const char *filename, float input_array[1][3][260][120]) {
   Video callback. Processes a camera image when available, and returns a depth map
 */
 struct image_t *depth_estimation_cb(struct image_t *img, uint8_t camera_id __attribute__((unused))) {
+  start_time = clock();
+  
   // Down sample image
   if(downsampled_img.buf_size < img->buf_size/(depth_estimation.in_ds_factor*depth_estimation.in_ds_factor)){
     image_free(&downsampled_img);
@@ -147,7 +149,6 @@ struct image_t *depth_estimation_cb(struct image_t *img, uint8_t camera_id __att
     end_time = clock();
     elapsed_time = ((double)(end_time - start_time)) / CLOCKS_PER_SEC;
     printf("Time taken to create depth vector: %.2f s\n", elapsed_time);
-    start_time = clock();
   }
   
   return img;
