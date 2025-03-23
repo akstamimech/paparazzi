@@ -1,14 +1,16 @@
 #include "depth_guidance.h"
 
-// Current states:
-// TRAVEL: Fly forward and continuously turn towards the best heading within a certain range (so only
-// angles right in front of the drone). If there's no good heading locally, go to REORIENT. When the
-// drone is about to fly out of the green zone, go to AVOID_BOUNDARY
-//
-// REORIENT: Stop the drone and turn towards the best heading of all of the non-local options (so make
-// a large turn). Once this heading is reached, go back to TRAVEL
-//
-// AVOID_BOUNDARY: Stop the drone and turn 180 degrees
+/*
+Current states:
+    TRAVEL: Fly forward and continuously turn towards the best heading within a certain range (so only
+    angles right in front of the drone). If there's no good heading locally, go to REORIENT. When the
+    drone is about to fly out of the green zone, go to AVOID_BOUNDARY
+
+    REORIENT: Stop the drone and turn towards the best heading of all of the non-local options (so make
+    a large turn). Once this heading is reached, go back to TRAVEL
+
+    AVOID_BOUNDARY: Stop the drone and turn counterclockwise to valid heading
+*/
 
 static float depth_vector[DEPTH_VECTOR_SIZE];
 static navigation_state_t current_state = TRAVEL;
@@ -52,21 +54,20 @@ void depth_vector_cb(uint8_t __attribute__((unused)) sender_id,
 void depth_guidance_init(void) {
     AbiBindMsgDEPTH_VECTOR(DEPTH_VECTOR_ID, &depth_vector_ev, depth_vector_cb);
     reorient_count = 0;
-    printf("start: %d   end: %d", local_idx_start, local_idx_end);
 }
 
 void depth_guidance_periodic(void) {
     static float global_target_heading;
     static float boundary_avoid_angle;
     float current_heading = stateGetNedToBodyEulers_f()->psi;
+    float vx = stateGetSpeedEnu_f()->x;
+    float vy = stateGetSpeedEnu_f()->y;
     float best_global_cost = 9999.0;
     float best_local_cost = 9999.0;
     int best_global_index = -1;
     int best_local_index = -1;
     float future_pos_x;
     float future_pos_y;
-    
-    // printf("reorient count: %d \n", reorient_count);
     
     // Find the best local and global headings
     for (int i = 0; i < DEPTH_VECTOR_SIZE; i++) {
@@ -89,8 +90,8 @@ void depth_guidance_periodic(void) {
     }
 
     // See if drone will be out of bounds
-    calc_future_pos(&future_pos_x, &future_pos_y);
-    bool boundary_ok = InsideCyberZoo(future_pos_x, future_pos_y); // Can also be InsideObstacleZone, but this is smaller area
+    calc_future_pos_with_vel(&future_pos_x, &future_pos_y);
+    bool boundary_ok = InsideCyberZoo(future_pos_x, future_pos_y); // Can also be InsideObstacleZone, but that is smaller area
 
     // Prevent running the drone when not in guided mode
     if (guidance_h.mode != GUIDANCE_H_MODE_GUIDED) {
@@ -103,14 +104,15 @@ void depth_guidance_periodic(void) {
     switch (current_state) {
         case TRAVEL:
             if (!boundary_ok) {
-                float curr_vel_heading = atan2f(stateGetSpeedNed_f()->y, stateGetSpeedNed_f()->x);
-                boundary_avoid_angle = curr_vel_heading + M_PI; // Couldn't get Lemon's code to work yet, that's way better than this
+                // float search_heading_start = atan2f(stateGetSpeedEnu_f()->y, stateGetSpeedEnu_f()->x);
+                // boundary_avoid_angle = current_heading + find_valid_heading(search_heading_start);
+
+                boundary_avoid_angle = current_heading + 0.5 * M_PI;
                 current_state = AVOID_BOUNDARY;
 
             } else if (best_local_cost < COST_THRESHOLD || reorient_count > REORIENT_THRESHOLD) {
                 float delta_heading = (float)(best_local_index + 1 - DEPTH_VECTOR_SIZE / 2) * (CAM_FOV / (2*DEPTH_VECTOR_SIZE));
-                float side_speed = delta_heading * FORW_SPEED;
-                // printf("Side speed: %f", side_speed);
+                float side_speed = 2 * delta_heading * FORW_SPEED;
 
                 guidance_h_set_body_vel(FORW_SPEED, side_speed);
                 guidance_h_set_heading(current_heading + delta_heading);
@@ -143,12 +145,11 @@ void depth_guidance_periodic(void) {
             guidance_h_set_heading(boundary_avoid_angle);
 
             if (bound_angle_diff < TURN_TOLERANCE) {
+                reorient_count += 6;
                 current_state = TRAVEL;
             }
             break;
     }
-
-    // printf("State: %d", current_state);
 }
 
 float calc_heading_cost(int idx, bool is_local_heading) {
@@ -157,7 +158,6 @@ float calc_heading_cost(int idx, bool is_local_heading) {
     values (obstacles), distance (in terms of yaw angle from straight forward heading) and squared average
     depth on that side of the image. Lower cost is better
     */
-    // Possible addition for local costs: Distance to global optimum cost
     float depth = depth_vector[idx];
 
     float proximity = 0.0;
@@ -178,10 +178,6 @@ float calc_heading_cost(int idx, bool is_local_heading) {
     float side_sq_depth = (idx < DEPTH_VECTOR_SIZE / 2) ? left_avg_sq_depth: right_avg_sq_depth;
 
     return W_DEPTH * depth + W_PROX * proximity + W_DIST * dist + W_OUTSIDE_OBJS * side_sq_depth;
-    // return W_DEPTH * depth;
-    // return W_PROX * proximity;
-    // return W_DIST * dist;
-    // return W_OUTSIDE_OBJS * side_sq_depth;
 }
 
 float calc_angle_diff(float angle1, float angle2) {
@@ -195,7 +191,7 @@ float calc_angle_diff(float angle1, float angle2) {
 }
 
 
-void calc_future_pos(float *future_x, float *future_y) {
+void calc_future_pos_with_vel(float *future_x, float *future_y) {
     float x = stateGetPositionEnu_f()->x;
     float y = stateGetPositionEnu_f()->y;
     float vx = stateGetSpeedEnu_f()->x;
@@ -215,4 +211,32 @@ void calc_future_pos(float *future_x, float *future_y) {
     
     *future_x = x + dir_x * BOUNDARY_CHECK_DIST;
     *future_y = y + dir_y * BOUNDARY_CHECK_DIST;
+}
+
+void calc_future_pos_with_angle(float *future_x, float *future_y, float heading) {
+    *future_x = stateGetPositionEnu_f()->x + cosf(heading) * 1.2 * BOUNDARY_CHECK_DIST;
+    *future_y = stateGetPositionEnu_f()->y + sinf(heading) * 1.2 * BOUNDARY_CHECK_DIST;
+}
+
+float find_valid_heading(float start_heading) {
+    // Check 8 headings in counterclockwise increments of pi/4 (45 degrees), starting from start_heading
+
+    for (int i = 0; i < 8; i++) {
+        float delta_heading = -(float)i * (M_PI / 4);
+        float new_heading = start_heading + delta_heading;
+
+        if (new_heading < 0) {
+            new_heading += 2 * M_PI;
+        }
+
+        float future_x, future_y;
+        calc_future_pos_with_angle(&future_x, &future_y, new_heading);
+
+        if (InsideCyberZoo(future_x, future_y)) {
+            printf("NEW TARGET x: %f  y: %f \n", future_x, future_y);
+            return delta_heading;  // Return first valid heading found
+        }
+    }
+
+    return M_PI;  // No valid heading found, just turn around
 }

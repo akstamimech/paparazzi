@@ -73,7 +73,7 @@
       <define name="W_OUTSIDE_OBJS" value="0.4"/>       <!-- Cost based on average depth value, outside of local range, on that side of depth vector -->
       <define name="CAM_FOV" value="2.0"/>              <!-- 115 degrees ~ 2.0 rad -->
       <define name="TURN_TOLERANCE" value="0.3"/>       <!-- [rad] Required angle difference between current and global target heading in REORIENT -->
-      <define name="BOUNDARY_CHECK_DIST" value="1.0"/>  <!-- Distance in direction of drone velocity to check if outside the boundary -->
+      <define name="BOUNDARY_CHECK_DIST" value="1.5"/>  <!-- Distance in direction of drone velocity to check if outside the boundary -->
     </module>
   </firmware>
 

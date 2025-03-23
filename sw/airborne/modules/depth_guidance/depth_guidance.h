@@ -91,6 +91,10 @@ float calc_heading_cost(int idx, bool is_local_heading);
 
 float calc_angle_diff(float angle1, float angle2);
 
-void calc_future_pos(float *future_x, float *future_y);
+void calc_future_pos_with_vel(float *future_x, float *future_y);
+
+void calc_future_pos_with_angle(float *future_x, float *future_y, float heading);
+
+float find_valid_heading(float start_heading);
 
 #endif //PAPARAZZI_DEPTH_GUIDANCE_H
