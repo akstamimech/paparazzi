@@ -26,6 +26,22 @@
 #define FORW_SPEED 0.5
 #endif
 
+#ifndef MIN_SPEED
+#define MIN_SPEED 0.25
+#endif
+
+#ifndef MAX_SPEED
+#define MAX_SPEED 0.8
+#endif
+
+#ifndef MIN_SPEED
+#define MIN_SPEED 0.5
+#endif
+
+#ifndef USE_DYNAMIC_SPEED
+#define USE_DYNAMIC_SPEED false
+#endif
+
 #ifndef MOV_AVG_FAC
 #define MOV_AVG_FAC 0.3
 #endif
@@ -59,6 +75,10 @@
 #define TURN_TOLERANCE 0.3
 #endif
 
+#ifndef TURN_RATE
+#define TURN_RATE 30
+#endif
+
 #ifndef BOUNDARY_CHECK_DIST
 #define BOUNDARY_CHECK_DIST 1.0
 #endif
@@ -90,6 +110,8 @@ extern void depth_guidance_periodic(void);
 float calc_heading_cost(int idx, bool is_local_heading);
 
 float calc_angle_diff(float angle1, float angle2);
+
+float fsign(float val);
 
 void calc_future_pos_with_vel(float *future_x, float *future_y);
 

@@ -21,6 +21,7 @@ static uint8_t reorient_count;
 static float left_avg_sq_depth;
 static float center_avg_sq_depth; // Maybe use to adjust forward speed?
 static float right_avg_sq_depth;
+const char *state_names[] = {"TRAVEL", "REORIENT", "AVOID_BOUNDARY"};
 
 void depth_vector_cb(uint8_t __attribute__((unused)) sender_id,
                      struct timeval time_stamp __attribute__((unused)),
@@ -80,6 +81,7 @@ float calc_heading_cost(int idx, bool is_local_heading) {
     }
 
     float side_sq_depth = (idx < DEPTH_VECTOR_SIZE / 2) ? left_avg_sq_depth: right_avg_sq_depth;
+    // printf("%.2f ", W_OUTSIDE_OBJS * side_sq_depth);
 
     return W_DEPTH * depth + W_PROX * proximity + W_DIST * dist + W_OUTSIDE_OBJS * side_sq_depth;
 }
@@ -94,6 +96,12 @@ float calc_angle_diff(float angle1, float angle2) {
     return diff;
 }
 
+float fsign(float val) {
+    if (val < 0.0) {
+        return -1.0;
+    }
+    return 1.0;
+}
 
 void calc_future_pos_with_vel(float *future_x, float *future_y) {
     float x = stateGetPositionEnu_f()->x;
@@ -156,12 +164,13 @@ void depth_guidance_periodic(void) {
     float future_pos_x;
     float future_pos_y;
     
+    // printf("Outside cost: ");
     // Find the best local and global headings
     for (int i = 0; i < DEPTH_VECTOR_SIZE; i++) {
         bool is_local_heading = i >=  local_idx_start && i <= local_idx_end;
 
         float cost = calc_heading_cost(i, is_local_heading);
-        // printf("%.2f ", cost);
+        printf("%.2f ", cost);
         
         if (is_local_heading) {
             if (cost < best_local_cost) {
@@ -175,10 +184,12 @@ void depth_guidance_periodic(void) {
             }
         }
     }
+    printf("\n");
 
     // See if drone will be out of bounds
     calc_future_pos_with_vel(&future_pos_x, &future_pos_y);
     bool boundary_ok = InsideCyberZoo(future_pos_x, future_pos_y); // Can also be InsideObstacleZone, but that is smaller area
+    // bool boundary_ok = InsideObstacleZone(future_pos_x, future_pos_y);
 
     // Prevent running the drone when not in guided mode
     if (guidance_h.mode != GUIDANCE_H_MODE_GUIDED) {
@@ -199,9 +210,23 @@ void depth_guidance_periodic(void) {
 
             } else if (best_local_cost < COST_THRESHOLD || reorient_count > REORIENT_THRESHOLD) {
                 float delta_heading = (float)(best_local_index + 1 - DEPTH_VECTOR_SIZE / 2) * (CAM_FOV / (2*DEPTH_VECTOR_SIZE));
-                float side_speed = 2 * delta_heading * FORW_SPEED;
 
-                guidance_h_set_body_vel(FORW_SPEED, side_speed);
+                float forw_speed = FORW_SPEED;
+                if (USE_DYNAMIC_SPEED) {
+                    float forw_cost = (calc_heading_cost(DEPTH_VECTOR_SIZE/2-1, true) + calc_heading_cost(DEPTH_VECTOR_SIZE/2, true)) / 2;
+                    if (forw_cost < 0.32) {
+                        forw_speed = MAX_SPEED;
+                    } else if (forw_cost > 0.6) {
+                        forw_speed = MIN_SPEED;
+                    } else {
+                        forw_speed = FORW_SPEED;
+                    }
+                }
+
+                // float side_speed = 2 * delta_heading * forw_speed;
+                float side_speed = 0;
+
+                guidance_h_set_body_vel(forw_speed, side_speed);
                 guidance_h_set_heading(current_heading + delta_heading);
 
                 reorient_count = max(0, reorient_count - 1);
@@ -214,27 +239,41 @@ void depth_guidance_periodic(void) {
 
         case REORIENT:
             // Turn in place towards global optimum heading
-            float angle_diff = fabs(calc_angle_diff(global_target_heading, current_heading));
+            float angle_diff = calc_angle_diff(global_target_heading, current_heading); // used to have fabs
 
             guidance_h_set_body_vel(0.0, 0.0);
             guidance_h_set_heading(global_target_heading);
 
-            if (angle_diff < TURN_TOLERANCE) {
+            // float heading_dir = fsign(angle_diff);
+            // guidance_h_set_heading_rate(heading_dir * RadOfDeg(TURN_RATE));
+
+            if (fabs(angle_diff) < TURN_TOLERANCE) {
                 reorient_count += 3;
+                guidance_h_set_heading(global_target_heading); // remove if not work
                 current_state = TRAVEL;
             }
             break;
 
         case AVOID_BOUNDARY:
-            float bound_angle_diff = fabs(calc_angle_diff(boundary_avoid_angle, current_heading));
+            float bound_angle_diff = calc_angle_diff(boundary_avoid_angle, current_heading); // used to have fabs
 
             guidance_h_set_body_vel(0.0, 0.0);
-            guidance_h_set_heading(boundary_avoid_angle);
+            // guidance_h_set_heading(boundary_avoid_angle);
 
-            if (bound_angle_diff < TURN_TOLERANCE) {
+            // float bound_heading_dir = fsign(bound_angle_diff);
+            // guidance_h_set_heading_rate(bound_heading_dir * RadOfDeg(TURN_RATE));
+            guidance_h_set_heading_rate(RadOfDeg(TURN_RATE));
+
+            // printf("angle diff: %f", fabs(bound_angle_diff));
+
+            if (fabs(bound_angle_diff) < TURN_TOLERANCE) {
                 reorient_count += 6;
+                guidance_h_set_heading(boundary_avoid_angle); // remove if not work
                 current_state = TRAVEL;
             }
             break;
     }
+
+    printf("Current state: %s \n", state_names[current_state]);
+    // printf("Reorient count: %d \n", reorient_count);
 }

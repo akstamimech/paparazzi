@@ -60,7 +60,10 @@
     </module>
 
     <module name="depth_guidance">
-      <define name="FORW_SPEED" value="0.5"/>           <!-- [m/s] -->
+      <define name="FORW_SPEED" value="0.7"/>           <!-- [m/s] -->
+      <define name="MIN_SPEED" value="0.4"/>           <!-- Minimum speed if using DYNAMIC_SPEED -->
+      <define name="MAX_SPEED" value="0.8"/>            <!-- Maximum speed if using DYNAMIC_SPEED -->
+      <define name="USE_DYNAMIC_SPEED" value="false"/>   <!-- Decide if using FORW_SPEED always, or base it on obstacles in front -->
       <define name="MOV_AVG_FAC" value = "0.7"/>        <!-- Moving average factor between old / new depth vector -->
       <define name="COST_THRESHOLD" value="0.8"/>       <!-- Threshold when local depth costs are too high and drone goes to REORIENT -->
       <define name="REORIENT_THRESHOLD" value="7"/>     <!-- Threshold for detecting when drone goes into a TRAVEL-REORIENT loop -->
@@ -69,11 +72,12 @@
       <define name="W_PROX" value="0.6"/>               <!-- Proximity to large neighboring depth values -->
       <define name="W_NEIGHBOR1" value="0.5"/>          <!-- How much closest neighbor is weighed in PROX cost -->
       <define name="W_NEIGHBOR2" value="0.2"/>          <!-- How much second neighbor is weighed in PROX cost -->
-      <define name="W_DIST" value="0.05"/>              <!-- Distance to center of the screen (so deviation from current heading) -->
-      <define name="W_OUTSIDE_OBJS" value="0.4"/>       <!-- Cost based on average depth value, outside of local range, on that side of depth vector -->
+      <define name="W_DIST" value="0.03"/>              <!-- Distance to center of the screen (so deviation from current heading) -->
+      <define name="W_OUTSIDE_OBJS" value="0.8"/>       <!-- Cost based on average depth value, outside of local range, on that side of depth vector -->
       <define name="CAM_FOV" value="2.0"/>              <!-- 115 degrees ~ 2.0 rad -->
       <define name="TURN_TOLERANCE" value="0.3"/>       <!-- [rad] Required angle difference between current and global target heading in REORIENT -->
-      <define name="BOUNDARY_CHECK_DIST" value="1.5"/>  <!-- Distance in direction of drone velocity to check if outside the boundary -->
+      <define name="TURN_RATE" value="60"/>            <!-- [deg/s] -->
+      <define name="BOUNDARY_CHECK_DIST" value="2.0"/>  <!-- Distance in direction of drone velocity to check if outside the boundary -->
     </module>
   </firmware>
 
