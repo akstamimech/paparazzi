@@ -6,9 +6,6 @@ struct image_t downsampled_img = {.buf=NULL, .buf_size=0};
 
 uint8_t white[4] = {127, 255, 127, 255};
 
-/*
-  Struct for keeping track of all the module settings
-*/
 struct depth_estimation depth_estimation = {
   .in_ds_factor = INPUT_DOWN_SAMPLE_FACTOR,
   .in_cam_fps = DEPTH_ESTIMATION_FPS,
@@ -16,8 +13,8 @@ struct depth_estimation depth_estimation = {
 
 /*
   Globally updated depth message, which is updated in the video callback and copied to local in the periodic function using
-  a mutex. If the message was updated, it's sent This ensures that the message is sent on the autopilot thread instead of
-  the callback / videa thread
+  a mutex. If the message was updated since last time, it's sent. This ensures that the message is sent on the autopilot thread instead of
+  the callback / video thread
 */
 struct depth_msg global_depth_msg;
 
@@ -44,7 +41,7 @@ void draw_depth_vector(struct image_t *img, float depth_vector[1][DEPTH_VECTOR_S
       float normalized_height = depth_vector[0][i] / max_depth;
       int bar_height = (int)(normalized_height * (float)img->w / 10);
 
-      // Compute Y positions (bars are stacked from top to bottom)
+      // Compute y positions (bars are stacked from top to bottom since img is rotated)
       int y_min = (img->h / DEPTH_VECTOR_SIZE) * i;
       int y_max = y_min + (img->h / DEPTH_VECTOR_SIZE);
 
@@ -69,6 +66,7 @@ void print_int_array(uint8_t arr[], int size) {
 }
 
 void uyvy_to_yuv(float input_array[1][3][260][120], uint8_t *buf, uint16_t width, uint16_t height) {
+  // Convert UYVY buffer to [1][3][260][120] shape YUV array
   int x, y, idx;
   
   for (y = 0; y < height; y++) {
@@ -80,9 +78,9 @@ void uyvy_to_yuv(float input_array[1][3][260][120], uint8_t *buf, uint16_t width
         uint8_t v = buf[idx + 2];  // V value for both pixels
         uint8_t y2 = buf[idx + 3]; // Y value for second pixel
 
-        // Store values in the input array (convert to float)
-        input_array[0][0][y][x] = (float)y1;  // Y channel
-        input_array[0][0][y][x + 1] = (float)y2;  // Y for the next pixel
+        // Store values in the input array and convert to float
+        input_array[0][0][y][x] = (float)y1;
+        input_array[0][0][y][x + 1] = (float)y2;
         input_array[0][1][y][x] = (float)u;
         input_array[0][1][y][x + 1] = (float)u;
         input_array[0][2][y][x] = (float)v;
@@ -91,28 +89,8 @@ void uyvy_to_yuv(float input_array[1][3][260][120], uint8_t *buf, uint16_t width
   }
 }
 
-void save_input_array(const char *filename, float input_array[1][3][260][120]) {
-  FILE *file = fopen(filename, "w");
-  if (!file) {
-      perror("Failed to open file");
-      return;
-  }
-
-  for (int c = 0; c < 3; c++) {
-      for (int h = 0; h < 260; h++) {
-          for (int w = 0; w < 120; w++) {
-              fprintf(file, "%.6f ", input_array[0][c][h][w]);  // Space-separated values
-          }
-      }
-  }
-
-  fclose(file);
-}
-
-/*
-  Video callback. Processes a camera image when available, and returns a depth map
-*/
 struct image_t *depth_estimation_cb(struct image_t *img, uint8_t camera_id __attribute__((unused))) {
+  // Video callback. Processes a camera image when available, and returns stores depth vector in global variable
   start_time = clock();
   
   // Down sample image
@@ -129,12 +107,13 @@ struct image_t *depth_estimation_cb(struct image_t *img, uint8_t camera_id __att
   float input_array[1][3][260][120];
   float depth_vector[1][DEPTH_VECTOR_SIZE];
 
-  // uyvy_to_yuv(input_array, img->buf, img->w, img->h);
+  // Convert to YUV
   uyvy_to_yuv(input_array, downsampled_img.buf, downsampled_img.w, downsampled_img.h);
 
+  // Run neural network
   entry(input_array, depth_vector);
-  // print_array(depth_vector[0], DEPTH_VECTOR_SIZE);
 
+  // Copy depth vector to global variable so it's accessible in autopilot thread
   pthread_mutex_lock(&mutex);
   global_depth_msg.time_stamp = img->ts;
   memcpy(global_depth_msg.depth_vector, depth_vector[0], DEPTH_VECTOR_SIZE * sizeof(float));
@@ -167,6 +146,7 @@ void depth_estimation_periodic(void) {
   memcpy(&local_depth_msg, &global_depth_msg, sizeof(struct depth_msg));
   pthread_mutex_unlock(&mutex);
 
+  // Send ABI message
   if (local_depth_msg.updated) {
     AbiSendMsgDEPTH_VECTOR(DEPTH_VECTOR_ID, local_depth_msg.time_stamp, local_depth_msg.depth_vector);
 

@@ -103,20 +103,14 @@ typedef enum {
 
 void depth_vector_cb(uint8_t __attribute__((unused)) sender_id, struct timeval time_stamp __attribute__((unused)), float msg_depth_vector[DEPTH_VECTOR_SIZE]);
 
-extern void depth_guidance_init(void);
-
-extern void depth_guidance_periodic(void);
-
 float calc_heading_cost(int idx, bool is_local_heading);
 
 float calc_angle_diff(float angle1, float angle2);
 
-float fsign(float val);
-
 void calc_future_pos_with_vel(float *future_x, float *future_y);
 
-void calc_future_pos_with_angle(float *future_x, float *future_y, float heading);
+extern void depth_guidance_init(void);
 
-float find_valid_heading(float start_heading);
+extern void depth_guidance_periodic(void);
 
 #endif //PAPARAZZI_DEPTH_GUIDANCE_H
